@@ -48,6 +48,9 @@ Setiap keputusan diberi label:
 | 10 | PIN 6 angka, **tanpa penguncian** (hanya validasi) | [OK] |
 | 11 | Fase 1 hanya 4 layar Figma (landing, login, registrasi 2 langkah) + auth + skema DB lengkap + RLS + seed; setelah login masuk halaman placeholder per peran | [OK] |
 | 12 | Data seed berupa data dummy yang ditandai jelas sebagai demo | [OK] |
+| 13 | Status laporan: `menunggu`, `dalam_proses`, `selesai`, `dibatalkan` | [OK] |
+| 14 | Status penarikan: `menunggu`, `selesai`, `ditolak` (dengan `alasan_penolakan`) | [OK] |
+| 15 | Katalog sampah awal disederhanakan menjadi 5 kategori: `kaca`, `plastik`, `besi`, `kertas`, `kayu` | [OK] |
 
 ---
 
@@ -122,8 +125,8 @@ Catatan:
   - Drop-off: pilih bank sampah tujuan; lihat peta dan jam operasional.
   - Validasi: pickup hanya diterima jika `estimasi_berat >= batas_minimum_pickup`. Di bawah batas, sistem mengarahkan warga ke drop-off dan menolak pickup.
 - **LAP-02** Warga dapat melihat dan mengubah laporan miliknya selama status `menunggu`. Tidak ada hapus.
-- **LAP-03 Daftar tugas petugas**: semua laporan berstatus `menunggu` (pickup dan drop-off), terlihat oleh semua petugas, dengan filter metode dan tampilan detail.
-- **[OPEN]** Perlu status tambahan (`dibatalkan`, `dijemput`)? ERD hanya `menunggu` dan `selesai`.
+- **LAP-03 Daftar tugas petugas**: semua laporan berstatus `menunggu` dan `dalam_proses` (pickup dan drop-off), terlihat oleh semua petugas, dengan filter metode dan tampilan detail.
+- **[OK]** Status laporan mencakup: `menunggu`, `dalam_proses`, `selesai`, dan `dibatalkan`. Warga dapat membatalkan laporan saat status masih `menunggu`. Petugas dapat menandai status `dalam_proses` saat penjemputan.
 - **[OPEN]** Apakah titik jemput harus berada di wilayah percontohan, dan bagaimana validasinya.
 
 ### 5.4 Verifikasi, penimbangan, dan saldo (Fase 5)
@@ -137,7 +140,7 @@ Catatan:
 - **WDR-01** Warga mengajukan penarikan (jumlah ≤ saldo, wajib PIN) dengan tujuan `tarik_tabungan` atau `potong_iuran`. Status awal `menunggu`.
 - **WDR-02** Petugas melihat antrean penarikan dan menandainya diproses. Saat selesai, sistem membuat `saldo_transaksi` jenis `penarikan` dan saldo berkurang. Cek ulang saldo cukup saat pemrosesan (bisa ada beberapa pengajuan bersamaan).
 - Tanpa payment gateway atau e-wallet. Uang diserahkan manual oleh bank sampah.
-- **[OPEN]** Status `ditolak` dan alasannya, batas minimum penarikan.
+- **[OK]** Status penarikan mencakup `menunggu`, `selesai`, dan `ditolak`. Jika ditolak, petugas mengisi alasan penolakan dan saldo warga tidak terpotong. Batas minimum penarikan dapat diatur pada data master/pengaturan.
 
 ### 5.6 Maps bank sampah (Fase 3)
 - **MAP-01** Peta Leaflet/OSM untuk pengguna login, menampilkan bank sampah **aktif** (nama, alamat, jam operasional). Pengguna melihat lokasi. Data lokasi disiapkan di luar fitur data master (asumsi Scope).
@@ -177,7 +180,7 @@ Catatan:
 Berdasarkan ERD dokumen dengan perbaikan hasil rekonsiliasi (bagian 11). Nama tabel `snake_case`. Password dikelola Supabase Auth, tidak disimpan di tabel aplikasi.
 
 ### 7.2 Enum
-`peran`: warga, petugas, admin · `metode_setoran`: pickup, drop_off · `status_laporan`: menunggu, selesai · `kondisi_sampah`: bersih, kotor, tercampur_air · `jenis_transaksi`: setoran, penarikan · `status_penarikan`: menunggu, selesai (+ [OPEN] ditolak) · `tujuan_penarikan`: tarik_tabungan, potong_iuran.
+`peran`: warga, petugas, admin · `metode_setoran`: pickup, drop_off · `status_laporan`: menunggu, dalam_proses, selesai, dibatalkan · `kondisi_sampah`: bersih, kotor, tercampur_air · `jenis_transaksi`: setoran, penarikan · `status_penarikan`: menunggu, selesai, ditolak · `tujuan_penarikan`: tarik_tabungan, potong_iuran.
 
 ### 7.3 Tabel
 
@@ -199,7 +202,7 @@ Berdasarkan ERD dokumen dengan perbaikan hasil rekonsiliasi (bagian 11). Nama ta
 
 **penimbangan**: `id`, `id_laporan` FK **UNIQUE**, `id_petugas` FK, `tanggal_timbang`, `total_berat`, `total_nilai`.
 
-**penarikan_saldo** (baru): `id`, `id_pengguna`, `jumlah`, `tujuan`, `status`, `tanggal_ajuan`, `id_petugas` nullable, `tanggal_proses` nullable.
+**penarikan_saldo** (baru): `id`, `id_pengguna`, `jumlah`, `tujuan`, `status`, `alasan_penolakan` text nullable, `tanggal_ajuan`, `id_petugas` nullable, `tanggal_proses` nullable.
 
 **saldo_transaksi**: `id`, `id_pengguna`, `id_penimbangan` nullable, `id_penarikan` nullable, `jenis`, `jumlah`, `tanggal`, `saldo` (saldo setelah transaksi). Hanya dibuat oleh fungsi server; klien tidak boleh INSERT/UPDATE/DELETE.
 
@@ -209,13 +212,15 @@ Berdasarkan ERD dokumen dengan perbaikan hasil rekonsiliasi (bagian 11). Nama ta
 **mitra_pengepul**: `id`, `nama`, `alamat`, `kontak`, `is_aktif`.
 **distribusi_mitra**: `id`, `id_mitra`, `id_kategori`, `berat`, `tanggal`, `catatan`.
 
-### 7.4 Seed katalog jenis sampah (dari Batasan Proyek)
-Daftar di dokumen berisi **28 butir** (bukan 27): Ban bekas; plastik tutup galon; arsip cacah; upah pilah sampah; buku tulis; botol soya; alma panci; koran bekas; botol infus LDPE; minyak jelantah; tutup botol plastik; tembaga; alma kaleng; kaleng (bekas susu, roti, bear brand); rongsokan; besi tanpa karat min 2 meter; arsip putih/bersih; buku cetak; cornes; duplex/arsip jelek; plastik campur; gelas plastik bening; gelas plastik warna-warni; ember/jerigen; pet campur; pet BM; pet bening; kardus.
+### 7.4 Seed katalog jenis sampah
+Katalog awal disederhanakan menjadi **5 kategori utama** [OK]:
+1. **kaca** (botol, pecahan kaca bening/berwarna)
+2. **plastik** (PET, botol, plastik campuran, gelas plastik)
+3. **besi** (kaleng, besi tua, rongsokan logam)
+4. **kertas** (kardus, duplex, buku tulis, arsip/koran)
+5. **kayu** (papan, balok kayu bekas)
 
-Catatan:
-- "Upah pilah sampah" tampak seperti jasa, bukan jenis sampah. **[OPEN]** tetap dimasukkan atau tidak.
-- Kriteria Penerimaan menyebut kategori kaca dan kayu, dan Scope menyebut kaca, tetapi tidak ada di daftar 28. **[OPEN]** apakah ditambahkan.
-- Harga seed: placeholder bertanda demo untuk 3 kondisi per jenis.
+Setiap kategori memiliki 3 kombinasi harga snapshot per kondisi: `bersih`, `kotor`, `tercampur_air`. Admin dapat menambah sub-kategori atau mengubah harga di data master (Fase 2).
 
 ### 7.5 Ringkasan RLS
 - `profil`: pengguna membaca dan mengubah miliknya; admin penuh. Pembuatan akun petugas/admin lewat server.
@@ -290,13 +295,13 @@ Kerjakan **satu fase per sesi**. Setiap fase diakhiri ringkasan singkat, daftar 
 1. Harga awal per kg (jenis × kondisi) dan batas minimum pickup (sebelum Fase 2 produksi).
 2. Field mitra pengepul dan struktur laporan distribusi (Fase 7).
 3. Metrik dan filter periode dashboard (Fase 7).
-4. Status penarikan `ditolak`, alasan, batas minimum penarikan (Fase 6).
-5. Status laporan tambahan (`dibatalkan`, `dijemput`) dan validasi wilayah titik jemput (Fase 4).
+4. ~~Status penarikan `ditolak`, alasan, batas minimum penarikan~~ -> **[OK] Diputuskan**: status `ditolak` dimasukkan bersama `alasan_penolakan`.
+5. ~~Status laporan tambahan (`dibatalkan`, `dijemput`) dan validasi wilayah titik jemput~~ -> **[OK] Diputuskan**: status `dibatalkan` dan `dalam_proses` dimasukkan.
 6. Teks asli konten edukasi (Fase 3).
 7. Data asli bank sampah beserta koordinat (Fase 3).
 8. Lupa password / lupa PIN / ubah PIN; frekuensi permintaan PIN (Fase 5).
 9. Apakah petugas boleh menambah atau mengubah baris kategori saat menimbang (Fase 5).
-10. Dimasukkannya "upah pilah sampah", "kaca", "kayu" ke katalog (Fase 2).
+10. ~~Dimasukkannya "upah pilah sampah", "kaca", "kayu" ke katalog~~ -> **[OK] Diputuskan**: 5 kategori utama (`kaca`, `plastik`, `besi`, `kertas`, `kayu`).
 11. Akses admin ke saldo per orang atau hanya agregat (Fase 5).
 12. Kebijakan password awal akun petugas/admin yang dibuat admin (Fase 2).
 13. Strategi pengujian otomatis (Fase 8).

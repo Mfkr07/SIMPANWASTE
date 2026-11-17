@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   ClipboardList,
   Clock3,
+  Download,
   Eye,
   EyeOff,
   FileText,
@@ -39,6 +40,7 @@ import {
   ShieldCheck,
   Trash2,
   Truck,
+  UploadCloud,
   UserCog,
   UserRound,
   Users,
@@ -49,6 +51,16 @@ import {
 
 type Role = "warga" | "petugas" | "admin";
 type Page = string;
+type WasteCondition =
+  | "Sudah dipilah"
+  | "Sudah dibersihkan"
+  | "Tidak mudah didaur ulang"
+  | "Belum dipilah dan dibersihkan";
+type TrackerStage =
+  | "Request Terkirim"
+  | "Petugas dalam Perjalanan"
+  | "Petugas Memverifikasi"
+  | "Poin Saldo Didapatkan";
 type Report = {
   id: string;
   citizen: string;
@@ -60,14 +72,97 @@ type Report = {
   date: string;
   location: string;
   assigned: string;
+  categoryWeights?: { category: string; estimate: number; conditions?: WasteCondition[] }[];
+  weighingPhotoDrafts?: Record<
+    string,
+    {
+      name: string;
+      type: string;
+      dataUrl: string;
+    }
+  >;
+  trackerHistory?: { stage: TrackerStage; timestamp: string }[];
+  verifiedItems?: {
+    category: string;
+    estimatedWeight: number;
+    citizenConditions: WasteCondition[];
+    actualWeight: number;
+    verifiedCondition?: WasteCondition;
+    verifiedConditions?: WasteCondition[];
+    weighingPhoto?: {
+      name: string;
+      type: string;
+      dataUrl: string;
+    };
+    price: number;
+    subtotal: number;
+  }[];
   actual?: number;
   value?: number;
+};
+type WithdrawalRequest = {
+  id: string;
+  citizenId: string;
+  citizenName: string;
+  type: "Penarikan manual" | "Potong iuran bulanan";
+  amount: number;
+  description: string;
+  submittedDate: string;
+  status: "Menunggu" | "Selesai";
+  processedDate?: string;
+  processedBy?: string;
+  proof?: {
+    name: string;
+    type: string;
+    dataUrl: string;
+  };
 };
 type UserProfile = {
   name: string;
   username: string;
   phone: string;
   address: string;
+};
+
+const wasteConditions: WasteCondition[] = [
+  "Sudah dipilah",
+  "Sudah dibersihkan",
+  "Tidak mudah didaur ulang",
+  "Belum dipilah dan dibersihkan",
+];
+
+const trackerTimestamp = () =>
+  new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date()) + " WIB";
+
+const addTrackerStage = (
+  report: Report,
+  stage: TrackerStage,
+  timestamp = trackerTimestamp(),
+): Report => {
+  const history = report.trackerHistory?.length
+    ? report.trackerHistory
+    : [{ stage: "Request Terkirim" as const, timestamp: report.date }];
+  return history.some((entry) => entry.stage === stage)
+    ? report.trackerHistory?.length
+      ? report
+      : { ...report, trackerHistory: history }
+    : {
+        ...report,
+        trackerHistory: [...history, { stage, timestamp }],
+      };
+};
+
+const readStoredState = <T,>(key: string, fallback: T): T => {
+  try {
+    const stored = window.localStorage.getItem(key);
+    return stored ? (JSON.parse(stored) as T) : fallback;
+  } catch {
+    return fallback;
+  }
 };
 
 const money = (value: number) =>
@@ -81,37 +176,93 @@ const categoriesSeed = [
   {
     name: "Botol Plastik PET",
     desc: "Botol minuman bening, bersih dan kering",
-    clean: 4500,
-    dirty: 2800,
+    prices: {
+      "Sudah dipilah": 4500,
+      "Sudah dibersihkan": 4500,
+      "Tidak mudah didaur ulang": 2800,
+      "Belum dipilah dan dibersihkan": 2800,
+    } satisfies Record<WasteCondition, number>,
   },
-  { name: "Kardus", desc: "Kardus kering tanpa lapisan minyak", clean: 2800, dirty: 1500 },
+  {
+    name: "Kardus",
+    desc: "Kardus kering tanpa lapisan minyak",
+    prices: {
+      "Sudah dipilah": 2800,
+      "Sudah dibersihkan": 2800,
+      "Tidak mudah didaur ulang": 1500,
+      "Belum dipilah dan dibersihkan": 1500,
+    } satisfies Record<WasteCondition, number>,
+  },
   {
     name: "Kaleng Aluminium",
     desc: "Kaleng minuman dan kemasan aluminium",
-    clean: 12000,
-    dirty: 8500,
+    prices: {
+      "Sudah dipilah": 12000,
+      "Sudah dibersihkan": 12000,
+      "Tidak mudah didaur ulang": 8500,
+      "Belum dipilah dan dibersihkan": 8500,
+    } satisfies Record<WasteCondition, number>,
   },
-  { name: "Kertas Campur", desc: "Kertas HVS, koran, dan majalah", clean: 2200, dirty: 1200 },
+  {
+    name: "Kertas Campur",
+    desc: "Kertas HVS, koran, dan majalah",
+    prices: {
+      "Sudah dipilah": 2200,
+      "Sudah dibersihkan": 2200,
+      "Tidak mudah didaur ulang": 1200,
+      "Belum dipilah dan dibersihkan": 1200,
+    } satisfies Record<WasteCondition, number>,
+  },
   {
     name: "Plastik Campur",
     desc: "Kemasan plastik non-B3 yang sudah dipilah",
-    clean: 1800,
-    dirty: 900,
+    prices: {
+      "Sudah dipilah": 1800,
+      "Sudah dibersihkan": 1800,
+      "Tidak mudah didaur ulang": 900,
+      "Belum dipilah dan dibersihkan": 900,
+    } satisfies Record<WasteCondition, number>,
   },
 ];
 
 const initialReports: Report[] = [
   {
+    id: "SW-250319-025",
+    citizen: "Ayu Lestari",
+    phone: "0812 7788 2341",
+    category: "Botol Plastik PET, Kardus",
+    estimate: 5,
+    method: "Pickup",
+    status: "Menunggu",
+    date: "19 Mar 2025",
+    location: "Jl. Ki Merogan, Kertapati",
+    assigned: "Rizky Pratama",
+    categoryWeights: [
+      { category: "Botol Plastik PET", estimate: 3, conditions: [] },
+      { category: "Kardus", estimate: 2, conditions: [] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "19 Mar 2025" },
+      { stage: "Petugas dalam Perjalanan", timestamp: "19 Mar 2025" },
+    ],
+  },
+  {
     id: "SW-250318-024",
     citizen: "Ayu Lestari",
     phone: "0812 7788 2341",
-    category: "Botol Plastik PET",
+    category: "Botol Plastik PET, Kardus, Kaleng Aluminium",
     estimate: 8,
     method: "Pickup",
     status: "Menunggu",
     date: "18 Mar 2025",
     location: "Jl. Ki Merogan, Kertapati",
     assigned: "Rizky Pratama",
+    categoryWeights: [
+      { category: "Botol Plastik PET", estimate: 3, conditions: [] },
+      { category: "Kardus", estimate: 2, conditions: [] },
+      { category: "Kaleng Aluminium", estimate: 3, conditions: [] },
+    ],
+    trackerHistory: [{ stage: "Request Terkirim", timestamp: "18 Mar 2025" }],
   },
   {
     id: "SW-250316-019",
@@ -124,6 +275,7 @@ const initialReports: Report[] = [
     date: "16 Mar 2025",
     location: "Bank Sampah Sejahtera",
     assigned: "Rizky Pratama",
+    trackerHistory: [{ stage: "Request Terkirim", timestamp: "16 Mar 2025" }],
   },
   {
     id: "SW-250312-011",
@@ -138,6 +290,11 @@ const initialReports: Report[] = [
     assigned: "Rizky Pratama",
     actual: 3.2,
     value: 38400,
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "12 Mar 2025" },
+      { stage: "Petugas Memverifikasi", timestamp: "12 Mar 2025" },
+      { stage: "Poin Saldo Didapatkan", timestamp: "12 Mar 2025" },
+    ],
   },
   {
     id: "SW-250308-006",
@@ -152,6 +309,12 @@ const initialReports: Report[] = [
     assigned: "Dedi Irawan",
     actual: 6.4,
     value: 14080,
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "8 Mar 2025" },
+      { stage: "Petugas dalam Perjalanan", timestamp: "8 Mar 2025" },
+      { stage: "Petugas Memverifikasi", timestamp: "8 Mar 2025" },
+      { stage: "Poin Saldo Didapatkan", timestamp: "8 Mar 2025" },
+    ],
   },
 ];
 
@@ -162,29 +325,56 @@ const transactionsSeed = [
   { date: "4 Feb 2025", type: "Setoran", weight: "9,1 kg", value: 36400, balance: 172400 },
 ];
 
+const withdrawalRequestsSeed: WithdrawalRequest[] = [
+  {
+    id: "WD-018",
+    citizenId: "ayu.lestari",
+    citizenName: "Ayu Lestari",
+    type: "Penarikan manual",
+    amount: 75000,
+    description: "Ambil tunai di Bank Sampah Graha Pena",
+    submittedDate: "18 Mar 2025",
+    status: "Menunggu",
+  },
+  {
+    id: "WD-017",
+    citizenId: "siti.rahma",
+    citizenName: "Siti Rahma",
+    type: "Potong iuran bulanan",
+    amount: 25000,
+    description: "Iuran sampah bulan Maret",
+    submittedDate: "17 Mar 2025",
+    status: "Menunggu",
+  },
+];
+
 const banks = [
   {
     name: "Bank Sampah Sejahtera",
     address: "Jl. Merdeka No. 24, Bukit Kecil",
     hours: "Sen–Sab, 08.00–15.00",
-    x: 48,
-    y: 36,
   },
   {
     name: "Bank Sampah Melati",
     address: "Jl. Demang Lebar Daun, Ilir Barat I",
     hours: "Sel–Min, 07.30–14.00",
-    x: 26,
-    y: 58,
   },
   {
     name: "Bank Sampah Kalidoni Hijau",
     address: "Jl. Mayor Zen No. 18, Kalidoni",
     hours: "Sen–Jum, 08.00–16.00",
-    x: 73,
-    y: 50,
   },
 ];
+
+const grahaPenaLocation = {
+  name: "Bank Sampah Graha Pena Palembang",
+  shortName: "Bank Sampah Graha Pena",
+  address:
+    "Jl. Kolonel H. Barlian KM.6,5 No.773, Srijaya, Kec. Alang-Alang Lebar, Kota Palembang, Sumatera Selatan 30961",
+  landmark: "Bersebelahan dengan Taman Wisata Punti Kayu.",
+  weekdaySchedule: "09.00–16.00 WIB",
+  saturdaySchedule: "Kegiatan rutin pemilahan sampah",
+};
 
 const education = [
   {
@@ -320,9 +510,6 @@ const nav: Record<Role, { label: string; page: string; icon: typeof Leaf }[]> = 
     { label: "Dashboard", page: "dashboard", icon: LayoutDashboard },
     { label: "Tugas Penjemputan", page: "tugas", icon: Truck },
     { label: "Verifikasi & Penimbangan", page: "verifikasi", icon: Scale },
-    { label: "Permintaan Penarikan", page: "permintaan", icon: HandCoins },
-    { label: "Informasi & Edukasi", page: "edukasi", icon: BookOpen },
-    { label: "Maps Bank Sampah", page: "maps", icon: MapPin },
     { label: "Profil Saya", page: "profil", icon: UserRound },
   ],
   admin: [
@@ -331,17 +518,25 @@ const nav: Record<Role, { label: string; page: string; icon: typeof Leaf }[]> = 
     { label: "Kelola Akun", page: "akun", icon: Users },
     { label: "Data Master", page: "master", icon: Settings2 },
     { label: "Distribusi ke Mitra", page: "distribusi", icon: PackageCheck },
-    { label: "Maps Bank Sampah", page: "maps", icon: MapPin },
-    { label: "Informasi & Edukasi", page: "edukasi", icon: BookOpen },
+    { label: "Permintaan Penarikan", page: "permintaan", icon: HandCoins },
   ],
 };
+
+function BrandMark({ className = "" }: { className?: string }) {
+  return (
+    <span
+      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-700 text-white shadow-sm ${className}`}
+      aria-hidden="true"
+    >
+      <Recycle size={23} strokeWidth={2.35} />
+    </span>
+  );
+}
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-700 text-white shadow-sm">
-        <Recycle size={22} />
-      </div>
+      <BrandMark />
       {!compact && (
         <div>
           <div className="font-extrabold tracking-tight text-slate-900">
@@ -505,20 +700,14 @@ function LandingIllustration() {
         <rect x="78" width="74" height="34" rx="15" fill="#14532D" />
         <circle cx="78" cy="240" r="12" fill="#1E293B" />
         <circle cx="158" cy="240" r="12" fill="#1E293B" />
-        <path
-          d="M91 114c12-18 41-18 54 0M88 141c18 22 47 22 64 0"
-          fill="none"
-          stroke="white"
-          strokeWidth="10"
-          strokeLinecap="round"
-        />
-        <path
-          d="m112 92 14 22-27 1M157 143l-26 1 12 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <Recycle
+          x={73}
+          y={99}
+          width={82}
+          height={82}
+          color="white"
+          strokeWidth={2.15}
+          aria-label="Simbol daur ulang"
         />
       </g>
 
@@ -590,6 +779,7 @@ function LandingIllustration() {
 
 function LandingPage({ navigate }: { navigate: (path: string) => void }) {
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [selectedLandingLocation, setSelectedLandingLocation] = useState("graha-pena");
   const scrollTo = (id: string) => {
     setMobileMenu(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -610,25 +800,51 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
   }, []);
 
   const publicNav = [
-    ["Beranda", "beranda"],
-    ["Tentang Sistem", "tentang"],
-    ["Fitur", "fitur"],
-    ["Alur Penyetoran", "alur"],
-    ["Maps Bank Sampah", "lokasi"],
+    ["Beranda", "/"],
+    ["Alur Penyetoran", "/alur-penyetoran"],
+    ["Impact Kami", "/impact-kami"],
+    ["About Us", "/about-us"],
   ];
+  const openWhatsApp = () =>
+    window.alert(
+      "Nomor WhatsApp utama belum tersedia. Silakan lengkapi data kontak terverifikasi.",
+    );
+  const landingLocations = [
+    {
+      id: "graha-pena",
+      name: grahaPenaLocation.name,
+      address: grahaPenaLocation.address,
+      hours: `Senin–Jumat: ${grahaPenaLocation.weekdaySchedule}`,
+      saturday: `Sabtu: ${grahaPenaLocation.saturdaySchedule}`,
+      landmark: grahaPenaLocation.landmark,
+      partner: true,
+    },
+    ...banks.map((bank, index) => ({
+      ...bank,
+      id: `referensi-${index}`,
+      address: `${bank.address}, Palembang, Sumatera Selatan`,
+      saturday: "",
+      landmark: "",
+      partner: false,
+    })),
+  ];
+  const activeLandingLocation =
+    landingLocations.find((location) => location.id === selectedLandingLocation) ||
+    landingLocations[0];
+  const activeLandingAddress = encodeURIComponent(activeLandingLocation.address);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-white text-slate-800">
       <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
-          <button onClick={() => scrollTo("beranda")} aria-label="Kembali ke beranda">
+          <button onClick={() => navigate("/")} aria-label="Kembali ke beranda">
             <Logo />
           </button>
           <nav className="hidden items-center gap-7 lg:flex">
-            {publicNav.map(([label, id]) => (
+            {publicNav.map(([label, path]) => (
               <button
-                key={id}
-                onClick={() => scrollTo(id)}
+                key={path}
+                onClick={() => navigate(path)}
                 className="text-sm font-semibold text-slate-600 transition hover:text-green-700"
               >
                 {label}
@@ -639,7 +855,7 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
             <Button variant="ghost" onClick={() => navigate("/login")}>
               Masuk
             </Button>
-            <Button onClick={() => navigate("/register")}>Daftar</Button>
+            <Button onClick={openWhatsApp}>Setor Sekarang</Button>
           </div>
           <button
             onClick={() => setMobileMenu((open) => !open)}
@@ -656,10 +872,10 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
           }`}
         >
           <nav className="space-y-1 px-5 py-4">
-            {publicNav.map(([label, id]) => (
+            {publicNav.map(([label, path]) => (
               <button
-                key={id}
-                onClick={() => scrollTo(id)}
+                key={path}
+                onClick={() => navigate(path)}
                 className="block w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-green-50 hover:text-green-700"
               >
                 {label}
@@ -669,7 +885,7 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
               <Button variant="secondary" onClick={() => navigate("/login")}>
                 Masuk
               </Button>
-              <Button onClick={() => navigate("/register")}>Daftar</Button>
+              <Button onClick={openWhatsApp}>Setor Sekarang</Button>
             </div>
           </nav>
         </div>
@@ -685,33 +901,32 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
                 <Leaf size={15} /> Sistem pengelolaan sampah berbasis pemilahan
               </div>
               <h1 className="mt-7 max-w-2xl text-4xl font-extrabold leading-[1.08] tracking-[-.04em] text-slate-950 sm:text-5xl lg:text-6xl">
-                Pilah Hari Ini, <span className="text-green-700">Hijaukan Masa Depan.</span>
+                Ubah Sampah Jadi <span className="text-green-700">Tabungan.</span>
               </h1>
               <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
-                Mulai kebiasaan memilah sampah dari rumah. Setorkan sampah anorganik bernilai
-                ekonomis dan pantau hasilnya melalui SIMPANWASTE.
+                Bank Sampah Graha Pena, binaan Sumatera Ekspres, Palembang.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button onClick={() => navigate("/register")} className="px-6 py-3">
-                  Mulai Sekarang <ArrowRight size={18} />
+                <Button onClick={openWhatsApp} className="px-6 py-3">
+                  Setor via WhatsApp <ArrowRight size={18} />
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => scrollTo("tentang")}
+                  onClick={() => navigate("/alur-penyetoran")}
                   className="px-6 py-3"
                 >
-                  Pelajari Sistem <ChevronDown size={18} />
+                  Lihat Cara Setor <ArrowRight size={18} />
                 </Button>
               </div>
-              <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 text-xs font-semibold text-slate-500">
+              <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 rounded-2xl border border-green-100 bg-white/80 px-4 py-3 text-xs font-semibold text-slate-600 shadow-sm">
                 <span className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-green-600" /> Pemilahan anorganik
+                  <Clock3 size={16} className="text-green-600" /> Senin–Jumat 09.00–16.00
                 </span>
                 <span className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-green-600" /> Penimbangan manual
+                  <MapPin size={16} className="text-green-600" /> Palembang
                 </span>
                 <span className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-green-600" /> Saldo transparan
+                  <Phone size={16} className="text-green-600" /> WhatsApp belum tersedia
                 </span>
               </div>
             </div>
@@ -740,6 +955,44 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white px-5 py-16 sm:py-20 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl">
+              <p className="text-xs font-extrabold uppercase tracking-[.16em] text-green-700">
+                Program Tabungan
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-950">
+                Sampah terpilah, manfaat lebih terarah.
+              </h2>
+            </div>
+            <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Tabungan Sampah", "Nilai setoran tersimpan sebagai saldo nasabah.", WalletCards],
+                ["Pendidikan", "Tabungan sampah dapat mendukung kebutuhan pendidikan.", BookOpen],
+                ["Kurban", "Akumulasi tabungan membantu perencanaan ibadah kurban.", HandCoins],
+                ["Umroh", "Tabungan jangka panjang dapat diarahkan untuk rencana umroh.", Leaf],
+              ].map(([title, description, Icon]) => {
+                const ProgramIcon = Icon as typeof Leaf;
+                return (
+                  <div
+                    key={String(title)}
+                    className="rounded-2xl border border-green-100 bg-[#f3f8f5] p-5"
+                  >
+                    <div className="grid h-11 w-11 place-items-center rounded-xl bg-green-100 text-green-700">
+                      <ProgramIcon size={20} />
+                    </div>
+                    <h3 className="mt-5 font-extrabold text-slate-900">{title as string}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{description as string}</p>
+                    <p className="mt-4 text-[10px] font-semibold text-amber-700">
+                      Contoh nilai manfaat menunggu data terverifikasi.
+                    </p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -981,61 +1234,174 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
         </section>
 
         <section id="lokasi" className="scroll-mt-20 bg-[#f3f8f3] py-20 sm:py-28">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 lg:grid-cols-[.9fr_1.1fr] lg:px-8">
-            <div data-reveal className="reveal-card">
+          <div className="mx-auto max-w-7xl px-5 lg:px-8">
+            <div className="max-w-3xl">
               <p className="text-xs font-extrabold uppercase tracking-[.16em] text-green-700">
-                Bank sampah aktif
+                Maps Bank Sampah
               </p>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
                 Temukan lokasi penyetoran di Palembang
               </h2>
               <p className="mt-5 text-base leading-8 text-slate-600">
-                Lihat lokasi yang tersedia beserta alamat dan jam operasionalnya. Data berikut
-                mengikuti data demonstrasi yang digunakan di dalam aplikasi.
+                Graha Pena merupakan mitra kerja sama utama SIMPANWASTE. Lokasi lainnya tetap
+                ditampilkan sebagai referensi bank sampah berdasarkan data demonstrasi aplikasi.
               </p>
-              <div className="mt-7 space-y-3">
-                {banks.map((bank) => (
-                  <div key={bank.name} className="rounded-2xl border border-green-100 bg-white p-4">
-                    <div className="flex gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-50 text-green-700">
-                        <Building2 size={19} />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-extrabold text-slate-900">{bank.name}</h3>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">{bank.address}</p>
-                        <p className="mt-2 flex items-center gap-1.5 text-xs font-bold text-green-700">
-                          <Clock3 size={13} /> {bank.hours}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button onClick={() => navigate("/login")} className="mt-6">
-                Masuk untuk Buka Maps <ArrowRight size={17} />
-              </Button>
             </div>
-            <div
-              data-reveal
-              className="reveal-card rounded-[2rem] border border-white bg-white p-3 shadow-xl"
-            >
-              <div className="map-full min-h-[500px]">
-                {banks.map((bank, index) => (
-                  <span
-                    key={bank.name}
-                    style={{ left: `${bank.x}%`, top: `${bank.y}%` }}
-                    className="map-pin absolute -translate-x-1/2 -translate-y-1/2"
+            <div className="mt-10 grid gap-8 lg:grid-cols-[.82fr_1.18fr]">
+              <div data-reveal className="reveal-card">
+                <div className="space-y-3">
+                  {landingLocations.map((location) => (
+                    <article
+                      key={location.id}
+                      className={
+                        location.partner
+                          ? "rounded-2xl border-2 border-green-600 bg-green-50 p-5 shadow-[0_10px_30px_rgba(22,101,52,.09)]"
+                          : "rounded-2xl border border-slate-200 bg-white p-4"
+                      }
+                    >
+                      <div className="flex gap-3">
+                        <div
+                          className={`grid shrink-0 place-items-center rounded-xl ${
+                            location.partner
+                              ? "h-11 w-11 bg-green-800 text-white"
+                              : "h-10 w-10 bg-green-50 text-green-600"
+                          }`}
+                        >
+                          <MapPin size={location.partner ? 21 : 18} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-extrabold text-slate-900">
+                              {location.name}
+                            </h3>
+                            {location.partner && <Badge tone="green">Mitra SIMPANWASTE</Badge>}
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-500">
+                            {location.address}
+                          </p>
+                          {location.landmark && (
+                            <p className="mt-1 text-xs font-semibold text-slate-600">
+                              {location.landmark}
+                            </p>
+                          )}
+                          <div className="mt-3 space-y-1.5 text-xs font-bold text-green-700">
+                            <p className="flex items-start gap-1.5">
+                              <Clock3 className="mt-0.5 shrink-0" size={13} /> {location.hours}
+                            </p>
+                            {location.saturday && (
+                              <p className="flex items-start gap-1.5">
+                                <CalendarDays className="mt-0.5 shrink-0" size={13} />{" "}
+                                {location.saturday}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLandingLocation(location.id)}
+                            className="mt-4 inline-flex items-center gap-1.5 text-xs font-extrabold text-green-700 transition hover:text-green-900"
+                          >
+                            Lihat Detail <ArrowRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+              <div
+                data-reveal
+                className="reveal-card self-start rounded-[2rem] border border-white bg-white p-3 shadow-xl lg:sticky lg:top-24"
+              >
+                <div className="relative overflow-hidden rounded-[1.4rem] bg-slate-100">
+                  <iframe
+                    key={activeLandingLocation.id}
+                    title={`Peta ${activeLandingLocation.name}`}
+                    src={`https://www.google.com/maps?q=${activeLandingAddress}&z=15&output=embed`}
+                    className="h-[580px] w-full border-0"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allowFullScreen
+                  />
+                  <div
+                    className="absolute left-4 right-4 top-4 flex flex-wrap gap-2"
+                    aria-label="Pilih lokasi bank sampah"
                   >
-                    <MapPin size={20} />
-                  </span>
-                ))}
-                <div className="absolute bottom-5 left-5 right-5 rounded-2xl bg-white/95 p-4 shadow-lg backdrop-blur">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-bold text-green-700">Area pilot</p>
-                      <p className="mt-1 text-sm font-extrabold text-slate-900">Kota Palembang</p>
+                    {landingLocations.map((location) => {
+                      const active = location.id === activeLandingLocation.id;
+                      return (
+                        <button
+                          key={location.id}
+                          type="button"
+                          onClick={() => setSelectedLandingLocation(location.id)}
+                          aria-label={`Pusatkan peta ke ${location.name}`}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-extrabold shadow-md backdrop-blur transition ${
+                            location.partner
+                              ? `border-green-900 bg-green-800 text-white ring-4 ring-green-300/50 ${
+                                  active ? "scale-105" : ""
+                                }`
+                              : `border-green-100 bg-green-50/95 text-green-700 ${
+                                  active ? "ring-2 ring-green-400" : "hover:bg-white"
+                                }`
+                          }`}
+                        >
+                          <MapPin size={location.partner ? 17 : 14} />
+                          <span className="hidden sm:inline">
+                            {location.partner
+                              ? "Graha Pena"
+                              : location.name.replace("Bank Sampah ", "")}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/95 p-4 shadow-xl backdrop-blur">
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                      <div>
+                        <p
+                          className={`text-[10px] font-extrabold uppercase tracking-[.12em] ${
+                            activeLandingLocation.partner ? "text-green-700" : "text-slate-500"
+                          }`}
+                        >
+                          {activeLandingLocation.partner
+                            ? "Mitra Kerja Sama SIMPANWASTE"
+                            : "Lokasi Bank Sampah Lainnya"}
+                        </p>
+                        <p className="mt-1 text-sm font-extrabold text-slate-900">
+                          {activeLandingLocation.name}
+                        </p>
+                        <p className="mt-1 max-w-lg text-[11px] leading-5 text-slate-500">
+                          {activeLandingLocation.address}
+                        </p>
+                        <p className="mt-1 max-w-lg text-[11px] font-semibold leading-5 text-slate-600">
+                          {activeLandingLocation.hours}
+                          {activeLandingLocation.saturday
+                            ? ` · ${activeLandingLocation.saturday}`
+                            : ""}
+                        </p>
+                        {activeLandingLocation.landmark && (
+                          <p className="mt-1 max-w-lg text-[11px] leading-5 text-slate-500">
+                            {activeLandingLocation.landmark}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${activeLandingAddress}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-green-700 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-green-800"
+                      >
+                        Buka Maps <ArrowRight size={14} />
+                      </a>
                     </div>
-                    <Badge tone="green">Data demonstrasi</Badge>
+                    <div className="mt-3 flex flex-wrap gap-4 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-600">
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-full bg-green-800 ring-2 ring-green-200" />
+                        Mitra SIMPANWASTE
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-3 w-3 rounded-full bg-green-300" />
+                        Lokasi Bank Sampah Lainnya
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1186,95 +1552,666 @@ function LandingPage({ navigate }: { navigate: (path: string) => void }) {
         </section>
       </main>
 
-      <footer className="relative overflow-hidden bg-[#052e25] text-green-50/70">
-        <Recycle className="absolute -right-14 top-10 text-white/[.025]" size={260} />
-        <div className="absolute -bottom-36 -left-28 h-72 w-72 rounded-full border-[50px] border-green-400/[.035]" />
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:grid-cols-2 lg:grid-cols-[1.35fr_.85fr_.75fr_1.05fr] lg:gap-12 lg:px-8 lg:py-20">
-          <div className="sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-green-500 text-green-950 shadow-sm">
-                <Recycle size={22} />
+      <PublicFooter navigate={navigate} />
+    </div>
+  );
+}
+
+type PublicInfoPageName = "alur" | "impact" | "about";
+
+function PublicInfoPage({
+  page,
+  navigate,
+}: {
+  page: PublicInfoPageName;
+  navigate: (path: string) => void;
+}) {
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const navItems = [
+    ["Beranda", "/"],
+    ["Alur Penyetoran", "/alur-penyetoran"],
+    ["Impact Kami", "/impact-kami"],
+    ["About Us", "/about-us"],
+  ];
+  const openWhatsApp = () =>
+    window.alert(
+      "Nomor WhatsApp utama belum tersedia. Silakan lengkapi data kontak terverifikasi.",
+    );
+  const encodedGrahaAddress = encodeURIComponent(grahaPenaLocation.address);
+
+  return (
+    <div className="min-h-screen bg-[#f7faf8] text-slate-800">
+      <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
+          <button onClick={() => navigate("/")} aria-label="Kembali ke beranda">
+            <Logo />
+          </button>
+          <nav className="hidden items-center gap-7 lg:flex">
+            {navItems.map(([label, path]) => (
+              <button
+                key={path}
+                onClick={() => navigate(path)}
+                className={`text-sm font-semibold transition ${
+                  (page === "alur" && path === "/alur-penyetoran") ||
+                  (page === "impact" && path === "/impact-kami") ||
+                  (page === "about" && path === "/about-us")
+                    ? "text-green-700"
+                    : "text-slate-600 hover:text-green-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          <div className="hidden items-center gap-2 lg:flex">
+            <Button variant="ghost" onClick={() => navigate("/login")}>
+              Masuk
+            </Button>
+            <Button onClick={openWhatsApp}>Setor Sekarang</Button>
+          </div>
+          <button
+            onClick={() => setMobileMenu((current) => !current)}
+            className="rounded-xl border border-slate-200 p-2.5 text-slate-700 lg:hidden"
+            aria-label="Buka navigasi"
+          >
+            {mobileMenu ? <X size={21} /> : <Menu size={21} />}
+          </button>
+        </div>
+        {mobileMenu && (
+          <div className="border-t border-slate-100 bg-white px-5 py-4 lg:hidden">
+            {navItems.map(([label, path]) => (
+              <button
+                key={path}
+                onClick={() => {
+                  setMobileMenu(false);
+                  navigate(path);
+                }}
+                className="block w-full rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-green-50"
+              >
+                {label}
+              </button>
+            ))}
+            <Button onClick={openWhatsApp} className="mt-3 w-full">
+              Setor Sekarang
+            </Button>
+          </div>
+        )}
+      </header>
+
+      <main>
+        {page === "alur" && (
+          <>
+            <PublicPageHero
+              eyebrow="ALUR PENYETORAN"
+              title="Dari rumah hingga menjadi tabungan."
+              description="Ikuti tahapan sederhana untuk memilah, menyetor, menimbang, dan mencatat nilai sampah di Bank Sampah Graha Pena Palembang."
+              icon={Recycle}
+            />
+            <section className="px-5 py-16 sm:py-20 lg:px-8">
+              <div className="mx-auto max-w-7xl">
+                <div className="grid gap-5 md:grid-cols-5">
+                  {[
+                    ["01", "Daftar Nasabah", "Lengkapi data diri sebagai nasabah.", UserRound],
+                    ["02", "Pilah di Rumah", "Pisahkan sampah bersih dan kering.", Recycle],
+                    [
+                      "03",
+                      "Antar atau Jemput",
+                      "Drop-off ke Graha Pena atau ajukan pickup.",
+                      Truck,
+                    ],
+                    ["04", "Ditimbang", "Petugas memverifikasi dan menimbang manual.", Scale],
+                    ["05", "Saldo Masuk", "Nilai setoran tercatat sebagai saldo.", WalletCards],
+                  ].map(([number, title, desc, Icon]) => {
+                    const StepIcon = Icon as typeof Leaf;
+                    return (
+                      <div
+                        key={String(number)}
+                        className="relative rounded-2xl bg-white p-5 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-green-700">
+                            {number as string}
+                          </span>
+                          <StepIcon size={20} className="text-green-700" />
+                        </div>
+                        <h3 className="mt-5 font-extrabold text-slate-900">{title as string}</h3>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">{desc as string}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-12 grid gap-6 lg:grid-cols-2">
+                  <InfoSection title="Syarat Menjadi Nasabah" icon={UserRound}>
+                    <ul className="space-y-3 text-sm leading-6 text-slate-600">
+                      <li>Data diri atau identitas yang dapat diverifikasi.</li>
+                      <li>
+                        Kategori nasabah: pribadi, sekolah, komunitas, perusahaan, atau instansi.
+                      </li>
+                      <li>Informasi biaya pendaftaran belum tersedia.</li>
+                    </ul>
+                  </InfoSection>
+                  <InfoSection title="Cara Memilah" icon={Recycle}>
+                    <ul className="space-y-3 text-sm leading-6 text-slate-600">
+                      <li>Sampah wajib bersih, kering, dan tidak mengandung sisa cairan.</li>
+                      <li>Pisahkan material per jenis sebelum diserahkan.</li>
+                      <li>Ketentuan pelepasan label belum tersedia dalam data operasional.</li>
+                    </ul>
+                  </InfoSection>
+                </div>
+
+                <section className="mt-12">
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                    <div>
+                      <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-700">
+                        Data Demonstrasi
+                      </p>
+                      <h2 className="mt-2 text-2xl font-extrabold">Jenis Sampah & Harga</h2>
+                    </div>
+                    <Badge tone="amber">Bukan harga operasional terkonfirmasi</Badge>
+                  </div>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    {[
+                      ["Kertas", "Kardus Rp2.800/kg · Kertas campur Rp2.200/kg"],
+                      ["Plastik", "PET Rp4.500/kg · Plastik campur Rp1.800/kg"],
+                      ["Logam", "Kaleng aluminium Rp12.000/kg"],
+                      ["Kaca", "Harga terverifikasi belum tersedia"],
+                      ["Lainnya", "Minyak jelantah: data belum tersedia"],
+                    ].map(([group, info]) => (
+                      <div key={group} className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <h3 className="font-extrabold text-green-800">{group}</h3>
+                        <p className="mt-3 text-xs leading-5 text-slate-500">{info}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-5">
+                    <h3 className="text-sm font-extrabold text-red-800">Tidak diterima</h3>
+                    <p className="mt-2 text-sm leading-6 text-red-700">
+                      Sampah B3, medis, material berukuran besar, dan layanan pengumpulan sampah
+                      organik.
+                    </p>
+                  </div>
+                </section>
+
+                <div className="mt-12 grid gap-6 lg:grid-cols-3">
+                  <InfoSection title="Minimal & Saldo" icon={WalletCards}>
+                    <p className="text-sm leading-6 text-slate-600">
+                      Minimum pickup demo: 5 kg. Saldo dapat dilihat setelah login dan penarikan
+                      diproses manual oleh petugas.
+                    </p>
+                  </InfoSection>
+                  <InfoSection title="Layanan Jemput" icon={Truck}>
+                    <p className="text-sm leading-6 text-slate-600">
+                      Batas minimum mengikuti konfigurasi sistem. Area jangkauan terverifikasi belum
+                      tersedia.
+                    </p>
+                  </InfoSection>
+                  <InfoSection title="Jadwal Setor" icon={CalendarDays}>
+                    <p className="text-sm leading-6 text-slate-600">
+                      Senin–Jumat {grahaPenaLocation.weekdaySchedule}. Sabtu:{" "}
+                      {grahaPenaLocation.saturdaySchedule}.
+                    </p>
+                  </InfoSection>
+                </div>
               </div>
+            </section>
+
+            <section className="bg-white px-5 py-16 sm:py-20 lg:px-8">
+              <div className="mx-auto max-w-7xl">
+                <div className="max-w-2xl">
+                  <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-700">
+                    Lokasi & Maps
+                  </p>
+                  <h2 className="mt-3 text-3xl font-extrabold">Lokasi operasional</h2>
+                </div>
+                <div className="mt-8 grid gap-6 lg:grid-cols-[1.25fr_.75fr]">
+                  <div className="overflow-hidden rounded-2xl border border-slate-200">
+                    <iframe
+                      title="Peta Sekretariat Graha Pena"
+                      src={`https://www.google.com/maps?q=${encodedGrahaAddress}&z=16&output=embed`}
+                      className="h-[480px] w-full border-0"
+                      allowFullScreen
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <LocationInfoCard
+                      title="Sekretariat Graha Pena"
+                      address={grahaPenaLocation.address}
+                      description="Lokasi penyetoran yang terintegrasi dengan SIMPANWASTE."
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodedGrahaAddress}`}
+                    />
+                    <LocationInfoCard
+                      title="Gudang Talang Betutu"
+                      address="Alamat dan titik peta terverifikasi belum tersedia."
+                      description="Disebut berada di belakang bandara lama; fungsi lokasi menunggu konfirmasi."
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {page === "impact" && <ImpactPublicPage />}
+        {page === "about" && <AboutPublicPage navigate={navigate} />}
+      </main>
+
+      <PublicFooter navigate={navigate} />
+    </div>
+  );
+}
+
+function PublicPageHero({
+  eyebrow,
+  title,
+  description,
+  icon: Icon,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  icon: typeof Leaf;
+}) {
+  return (
+    <section className="relative overflow-hidden bg-[#eaf6ed] px-5 py-16 sm:py-24 lg:px-8">
+      <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border-[56px] border-green-600/[.06]" />
+      <div className="relative mx-auto flex max-w-7xl items-center gap-6">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-green-700 text-white shadow-lg">
+          <Icon size={26} />
+        </div>
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[.15em] text-green-700">
+            {eyebrow}
+          </p>
+          <h1 className="mt-3 max-w-3xl text-4xl font-extrabold tracking-[-.04em] text-slate-950 sm:text-5xl">
+            {title}
+          </h1>
+          <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">{description}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function InfoSection({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: typeof Leaf;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-green-50 text-green-700">
+          <Icon size={19} />
+        </div>
+        <h2 className="font-extrabold text-slate-900">{title}</h2>
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function LocationInfoCard({
+  title,
+  address,
+  description,
+  href,
+}: {
+  title: string;
+  address: string;
+  description: string;
+  href?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-[#f7faf8] p-5">
+      <MapPin className="text-green-700" size={21} />
+      <h3 className="mt-4 font-extrabold">{title}</h3>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{address}</p>
+      <p className="mt-3 text-xs leading-5 text-slate-600">{description}</p>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex items-center gap-2 text-xs font-extrabold text-green-700"
+        >
+          Petunjuk Arah <ArrowRight size={14} />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function ImpactPublicPage() {
+  const monthlyWaste = [620, 710, 680, 820, 910, 870, 1020, 960, 1110, 1180, 1240, 1360];
+  const maxWaste = Math.max(...monthlyWaste);
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "Mei",
+    "Jun",
+    "Jul",
+    "Agu",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Des",
+  ];
+  return (
+    <>
+      <PublicPageHero
+        eyebrow="IMPACT KAMI"
+        title="Dampak yang tumbuh dari kebiasaan memilah."
+        description="Ringkasan berikut menggunakan data demonstrasi sampai angka operasional terverifikasi tersedia."
+        icon={BarChart3}
+      />
+      <section className="px-5 py-16 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["1.240+", "Nasabah"],
+              ["18", "Mitra"],
+              ["12.840 kg", "Sampah terkelola"],
+              ["Rp48,6 jt", "Dibagikan ke nasabah"],
+            ].map(([value, label]) => (
+              <div key={label} className="rounded-2xl border border-green-100 bg-white p-6">
+                <p className="text-3xl font-extrabold text-green-800">{value}</p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">{label}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs font-semibold text-amber-700">
+            Data demonstrasi · terakhir diperbarui Desember 2025
+          </p>
+
+          <Card className="mt-8 p-6 sm:p-8">
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
               <div>
-                <p className="text-lg font-extrabold text-white">SIMPANWASTE</p>
-                <p className="text-[10px] font-bold tracking-[.16em] text-green-300">
-                  PALEMBANG PILOT
+                <h2 className="text-xl font-extrabold">Total Sampah Terkumpul dalam 1 Tahun</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Bank Sampah Graha Pena · kilogram per bulan · data demonstrasi
                 </p>
               </div>
+              <Badge tone="green">Total 11.480 kg</Badge>
             </div>
-            <p className="mt-6 max-w-md text-sm leading-7 text-green-50/60">
-              Sistem Informasi Pengelolaan Sampah Berbasis Pemilahan untuk mendukung pengelolaan
-              sampah anorganik yang lebih terstruktur.
-            </p>
-            <p className="mt-5 flex items-center gap-2 text-sm font-semibold text-green-100">
-              <MapPin size={16} className="text-green-400" /> Kota Palembang
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-300">
-              Navigasi
-            </p>
-            <div className="mt-6 space-y-3.5">
-              {publicNav.map(([label, id]) => (
-                <button
-                  key={id}
-                  onClick={() => scrollTo(id)}
-                  className="block text-left text-sm text-green-50/60 transition hover:translate-x-1 hover:text-green-300"
-                >
-                  {label}
-                </button>
+            <div className="mt-8 flex h-72 items-end gap-2 sm:gap-4">
+              {monthlyWaste.map((value, index) => (
+                <div key={months[index]} className="flex h-full flex-1 flex-col justify-end">
+                  <div
+                    className="group relative rounded-t-lg bg-green-600 transition hover:bg-green-700"
+                    style={{ height: `${(value / maxWaste) * 100}%` }}
+                  >
+                    <span className="absolute -top-7 left-1/2 hidden -translate-x-1/2 text-[10px] font-bold text-green-800 group-hover:block">
+                      {value}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-center text-[9px] font-semibold text-slate-400 sm:text-[10px]">
+                    {months[index]}
+                  </p>
+                </div>
               ))}
             </div>
+          </Card>
+
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            <InfoSection title="Konversi Dampak" icon={Truck}>
+              <p className="text-sm leading-7 text-slate-600">
+                Konversi truk sampah dan emisi CO₂ menunggu metodologi serta data terverifikasi.
+              </p>
+            </InfoSection>
+            <InfoSection title="Mitra" icon={Building2}>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Sumatera Ekspres",
+                  "DLH Palembang",
+                  "Disdik",
+                  "PTPN I Regional 7",
+                  "PHM Hotels",
+                ].map((partner) => (
+                  <span
+                    key={partner}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600"
+                  >
+                    {partner}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-4 text-[10px] text-amber-700">
+                Daftar usulan; status kerja sama perlu dikonfirmasi.
+              </p>
+            </InfoSection>
           </div>
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-300">
-              Akses Sistem
-            </p>
-            <div className="mt-6 space-y-3.5">
-              <button
-                onClick={() => navigate("/login")}
-                className="block text-sm text-green-50/60 transition hover:translate-x-1 hover:text-green-300"
+
+          <section className="mt-12">
+            <h2 className="text-2xl font-extrabold">Cerita, Berita & Galeri</h2>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {["Testimoni nasabah", "Berita terbaru", "Galeri kegiatan"].map((title) => (
+                <div
+                  key={title}
+                  className="rounded-2xl border border-dashed border-slate-300 p-8 text-center"
+                >
+                  <FileText className="mx-auto text-slate-300" />
+                  <h3 className="mt-4 font-extrabold">{title}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Konten terverifikasi belum tersedia.
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function AboutPublicPage({ navigate }: { navigate: (path: string) => void }) {
+  return (
+    <>
+      <PublicPageHero
+        eyebrow="ABOUT US"
+        title="Gerakan lokal untuk pengelolaan sampah yang lebih terstruktur."
+        description="Bank Sampah Graha Pena merupakan inisiatif di Palembang yang mendorong pemilahan, pencatatan setoran, dan kolaborasi lintas komunitas."
+        icon={Leaf}
+      />
+      <section className="px-5 py-16 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <InfoSection title="Visi" icon={Eye}>
+              <p className="text-sm leading-7 text-slate-600">
+                Mendorong kebiasaan memilah dan pengelolaan sampah anorganik yang memberi manfaat
+                bagi masyarakat dan lingkungan.
+              </p>
+            </InfoSection>
+            <InfoSection title="Misi" icon={CheckCircle2}>
+              <ol className="space-y-3 text-sm leading-6 text-slate-600">
+                <li>1. Memperluas edukasi pemilahan dari sumber.</li>
+                <li>2. Menyelenggarakan pencatatan setoran yang transparan.</li>
+                <li>3. Mengembangkan kemitraan sekolah, komunitas, dan instansi.</li>
+                <li>4. Mendukung distribusi material daur ulang yang lebih tertata.</li>
+              </ol>
+            </InfoSection>
+          </div>
+
+          <section className="mt-12">
+            <h2 className="text-2xl font-extrabold">Layanan Kerja Sama</h2>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                ["Produk Daur Ulang", Recycle],
+                ["Narasumber & Fasilitator", Users],
+                ["CSR / TJSL", Building2],
+                ["Pendampingan Unit & Sekolah", BookOpen],
+              ].map(([title, Icon]) => {
+                const ServiceIcon = Icon as typeof Leaf;
+                return (
+                  <div
+                    key={String(title)}
+                    className="rounded-2xl border border-green-100 bg-white p-5"
+                  >
+                    <ServiceIcon className="text-green-700" size={21} />
+                    <h3 className="mt-5 font-extrabold">{title as string}</h3>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Detail layanan menunggu informasi terverifikasi.
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                onClick={() =>
+                  window.alert("Kontak kerja sama belum tersedia. Silakan lengkapi data kontak.")
+                }
               >
-                Masuk
-              </button>
-              <button
-                onClick={() => navigate("/register")}
-                className="block text-sm text-green-50/60 transition hover:translate-x-1 hover:text-green-300"
+                Ajukan Kerja Sama
+              </Button>
+              <Button variant="secondary" disabled>
+                Company Profile belum tersedia
+              </Button>
+            </div>
+          </section>
+
+          <section className="mt-12 grid gap-6 lg:grid-cols-2">
+            <InfoSection title="Pengurus" icon={Users}>
+              <p className="text-sm leading-7 text-slate-600">
+                Nama, jabatan, dan foto pengurus terverifikasi belum tersedia.
+              </p>
+            </InfoSection>
+            <InfoSection title="Regulasi" icon={FileText}>
+              <div className="space-y-2">
+                {[
+                  "Regulasi pengelolaan sampah",
+                  "Kebijakan bank sampah",
+                  "Pedoman operasional",
+                ].map((item) => (
+                  <details key={item} className="rounded-xl bg-slate-50 px-4 py-3">
+                    <summary className="cursor-pointer text-sm font-bold">{item}</summary>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Dokumen terverifikasi belum tersedia.
+                    </p>
+                  </details>
+                ))}
+              </div>
+            </InfoSection>
+          </section>
+
+          <section className="mt-12">
+            <h2 className="text-2xl font-extrabold">FAQ</h2>
+            <div className="mt-5 space-y-3">
+              {[
+                [
+                  "Apakah harus menjadi anggota terlebih dahulu?",
+                  "Ya, data diri diperlukan agar setoran dan saldo tercatat pada akun yang tepat.",
+                ],
+                [
+                  "Berapa minimal setoran?",
+                  "Tidak ada minimum Drop-off pada prototipe. Minimum pickup demo adalah 5 kg.",
+                ],
+                [
+                  "Kapan saldo bisa dicairkan?",
+                  "Permintaan penarikan dicatat melalui sistem dan diproses manual oleh petugas.",
+                ],
+                [
+                  "Bisakah sekolah atau kantor menjadi mitra?",
+                  "Kategori sekolah, komunitas, perusahaan, dan instansi termasuk dalam usulan nasabah/mitra.",
+                ],
+                [
+                  "Apakah ada layanan jemput?",
+                  "Pickup tersedia jika estimasi berat memenuhi batas minimum; area jangkauan belum terverifikasi.",
+                ],
+              ].map(([question, answer]) => (
+                <details
+                  key={question}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-4"
+                >
+                  <summary className="cursor-pointer font-bold text-slate-800">{question}</summary>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-12 rounded-[2rem] bg-green-800 p-8 text-white sm:p-12">
+            <h2 className="text-3xl font-extrabold">Siap menabung sampah?</h2>
+            <p className="mt-3 text-green-100">Mulai pilah dari rumah dan setor ke Graha Pena.</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button
+                onClick={() => window.alert("Nomor WhatsApp utama belum tersedia.")}
+                className="bg-white text-green-800 hover:bg-green-50"
               >
-                Daftar Warga
-              </button>
+                WhatsApp
+              </Button>
+              <Button variant="secondary" onClick={() => navigate("/alur-penyetoran")}>
+                Petunjuk Arah
+              </Button>
+            </div>
+          </section>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function PublicFooter({ navigate }: { navigate: (path: string) => void }) {
+  return (
+    <footer className="bg-[#052e25] text-green-50/70">
+      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:grid-cols-2 lg:grid-cols-4 lg:px-8">
+        <div>
+          <div className="flex items-center gap-3">
+            <BrandMark className="bg-green-600" />
+            <div>
+              <p className="font-extrabold text-white">SIMPANWASTE</p>
+              <p className="text-[10px] font-bold tracking-[.14em] text-green-300">
+                GRAHA PENA PALEMBANG
+              </p>
             </div>
           </div>
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-300">
-              Identitas Proyek
-            </p>
-            <dl className="mt-6 space-y-4 text-sm">
-              <div>
-                <dt className="text-xs font-medium text-green-50/40">Nama sistem</dt>
-                <dd className="mt-1 font-bold text-green-50">SIMPANWASTE</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-green-50/40">Jenis</dt>
-                <dd className="mt-1 leading-6 text-green-50/70">
-                  Sistem Informasi Pengelolaan Sampah Berbasis Pemilahan
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-green-50/40">Wilayah studi</dt>
-                <dd className="mt-1 font-semibold text-green-50/80">Kota Palembang</dd>
-              </div>
-            </dl>
+          <p className="mt-5 text-sm leading-7">
+            Bank Sampah Graha Pena · Sistem pengelolaan sampah berbasis pemilahan.
+          </p>
+        </div>
+        <div>
+          <p className="font-extrabold text-green-300">Lokasi</p>
+          <p className="mt-4 text-xs leading-6">{grahaPenaLocation.address}</p>
+          <p className="mt-3 text-xs leading-6">
+            Gudang Talang Betutu: alamat terverifikasi belum tersedia.
+          </p>
+        </div>
+        <div>
+          <p className="font-extrabold text-green-300">Kontak</p>
+          <p className="mt-4 text-xs leading-6">WhatsApp setoran: belum tersedia</p>
+          <p className="text-xs leading-6">WhatsApp kerja sama: belum tersedia</p>
+          <p className="text-xs leading-6">Kontak lainnya: belum tersedia</p>
+          <p className="mt-2 text-xs leading-6">Email & Instagram: belum tersedia</p>
+        </div>
+        <div>
+          <p className="font-extrabold text-green-300">Tautan</p>
+          <div className="mt-4 space-y-2 text-xs">
+            <button onClick={() => navigate("/alur-penyetoran")} className="block hover:text-white">
+              Jenis Sampah
+            </button>
+            <button onClick={() => navigate("/impact-kami")} className="block hover:text-white">
+              Berita & Impact
+            </button>
+            <button onClick={() => navigate("/login")} className="block hover:text-white">
+              Cek Saldo / Login Anggota
+            </button>
+            <button onClick={() => navigate("/login")} className="block hover:text-white">
+              Login Pengurus
+            </button>
           </div>
         </div>
-        <div className="relative border-t border-white/10">
-          <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-6 text-xs text-green-50/40 sm:flex-row sm:items-center sm:justify-between lg:px-8">
-            <p>© 2025 SIMPANWASTE. Prototype sistem informasi.</p>
-            <p>Data dan harga ditampilkan untuk keperluan demonstrasi.</p>
-          </div>
-        </div>
-      </footer>
-    </div>
+      </div>
+      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-green-50/40">
+        © 2025 SIMPANWASTE. Prototype sistem informasi.
+      </div>
+    </footer>
   );
 }
 
@@ -1306,9 +2243,7 @@ function Login({
         <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full border-[70px] border-white/5" />
         <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full border-[60px] border-emerald-400/10" />
         <button onClick={onHome} className="relative flex items-center gap-3 text-left">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-green-800">
-            <Recycle />
-          </div>
+          <BrandMark className="h-11 w-11 bg-green-700 ring-1 ring-white/30" />
           <div>
             <p className="text-xl font-extrabold">SIMPANWASTE</p>
             <p className="text-xs tracking-[.16em] text-green-200">KOTA PALEMBANG</p>
@@ -1531,9 +2466,7 @@ function Register({ onBack }: { onBack: () => void }) {
           <Recycle className="absolute bottom-8 right-8 hidden text-white/5 lg:block" size={112} />
 
           <div className="relative flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-green-800 shadow-sm">
-              <Recycle size={23} />
-            </div>
+            <BrandMark className="h-11 w-11 bg-green-700 ring-1 ring-white/30" />
             <div>
               <p className="font-extrabold tracking-tight">SIMPANWASTE</p>
               <p className="text-[10px] font-bold tracking-[.16em] text-green-200">
@@ -1823,8 +2756,18 @@ function Register({ onBack }: { onBack: () => void }) {
 function Shell({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebar, setSidebar] = useState(false);
-  const [reports, setReports] = useState(initialReports);
-  const [balance, setBalance] = useState(transactionsSeed[0].balance);
+  const [reports, setReports] = useState<Report[]>(() =>
+    readStoredState("simpanwaste-reports", initialReports),
+  );
+  const [pickedUpReports, setPickedUpReports] = useState<string[]>(() =>
+    readStoredState("simpanwaste-picked-up", ["SW-250319-025"]),
+  );
+  const [balance, setBalance] = useState(() =>
+    readStoredState("simpanwaste-balance", transactionsSeed[0].balance),
+  );
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(() =>
+    readStoredState("simpanwaste-withdrawal-requests", withdrawalRequestsSeed),
+  );
   const [citizenProfile, setCitizenProfile] = useState<UserProfile>({
     name: "Ayu Lestari",
     username: "ayu.lestari",
@@ -1834,14 +2777,89 @@ function Shell({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [categories, setCategories] = useState(categoriesSeed);
   const [minPickup, setMinPickup] = useState(5);
   const [toast, setToast] = useState("");
+  const [headerPopover, setHeaderPopover] = useState<"notifications" | "profile" | null>(null);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    window.localStorage.setItem("simpanwaste-reports", JSON.stringify(reports));
+  }, [reports]);
+  useEffect(() => {
+    window.localStorage.setItem("simpanwaste-picked-up", JSON.stringify(pickedUpReports));
+  }, [pickedUpReports]);
+  useEffect(() => {
+    window.localStorage.setItem("simpanwaste-balance", JSON.stringify(balance));
+  }, [balance]);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "simpanwaste-withdrawal-requests",
+        JSON.stringify(withdrawalRequests),
+      );
+    } catch {
+      notify("Bukti terlalu besar untuk disimpan pada prototype browser.");
+    }
+  }, [withdrawalRequests]);
+  useEffect(() => {
+    const closeHeaderPopovers = (event: MouseEvent) => {
+      if (!headerActionsRef.current?.contains(event.target as Node)) {
+        setHeaderPopover(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHeaderPopover(null);
+    };
+    document.addEventListener("mousedown", closeHeaderPopovers);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeHeaderPopovers);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
   const notify = (text: string) => {
     setToast(text);
     setTimeout(() => setToast(""), 2800);
   };
   const names = { warga: citizenProfile.name, petugas: "Rizky Pratama", admin: "Nadia Putri" };
   const roleLabel = { warga: "Warga", petugas: "Petugas Lapangan", admin: "Administrator" };
+  const notifications = useMemo(() => {
+    const relevantReports =
+      role === "warga"
+        ? reports.filter((report) => report.citizen === citizenProfile.name)
+        : role === "petugas"
+          ? reports.filter((report) => report.assigned === names.petugas)
+          : reports;
+    return relevantReports.slice(0, 5).map((report) => {
+      const latestTracker = report.trackerHistory?.at(-1);
+      const title =
+        role === "warga"
+          ? report.status === "Selesai"
+            ? "Setoran selesai"
+            : "Progres setoran diperbarui"
+          : role === "petugas"
+            ? report.status === "Selesai"
+              ? "Laporan telah diselesaikan"
+              : "Laporan menunggu tindakan"
+            : report.status === "Selesai"
+              ? "Laporan setoran selesai"
+              : "Laporan setoran masuk";
+      const message =
+        role === "warga"
+          ? `${report.id} · ${latestTracker?.stage || report.status}`
+          : `${report.id} · ${report.citizen} · ${report.estimate} kg`;
+      return {
+        id: `${role}-${report.id}-${report.status}-${report.trackerHistory?.length || 0}`,
+        title,
+        message,
+        timestamp: latestTracker?.timestamp || report.date,
+      };
+    });
+  }, [citizenProfile.name, reports, role]);
+  const unreadCount = notifications.filter(
+    (notification) => !readNotificationIds.includes(notification.id),
+  ).length;
   const go = (p: string) => {
-    setPage(p);
+    const allowedPages = nav[role].map((item) => item.page);
+    setPage(allowedPages.includes(p) ? p : "dashboard");
     setSidebar(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1852,8 +2870,12 @@ function Shell({ role, onLogout }: { role: Role; onLogout: () => void }) {
       go={go}
       reports={reports}
       setReports={setReports}
+      pickedUpReports={pickedUpReports}
+      setPickedUpReports={setPickedUpReports}
       balance={balance}
       setBalance={setBalance}
+      withdrawalRequests={withdrawalRequests}
+      setWithdrawalRequests={setWithdrawalRequests}
       citizenProfile={citizenProfile}
       setCitizenProfile={setCitizenProfile}
       categories={categories}
@@ -1937,21 +2959,214 @@ function Shell({ role, onLogout }: { role: Role; onLogout: () => void }) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="relative rounded-xl p-2.5 text-slate-500 hover:bg-slate-100">
-              <Bell size={20} />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
-            </button>
+          <div ref={headerActionsRef} className="relative flex items-center gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Buka notifikasi"
+                aria-haspopup="dialog"
+                aria-expanded={headerPopover === "notifications"}
+                onClick={() =>
+                  setHeaderPopover((current) =>
+                    current === "notifications" ? null : "notifications",
+                  )
+                }
+                className={`relative rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-100 ${
+                  headerPopover === "notifications" ? "bg-slate-100 text-green-700" : ""
+                }`}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-extrabold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              {headerPopover === "notifications" && (
+                <div
+                  role="dialog"
+                  aria-label="Notifikasi"
+                  className="absolute right-0 top-full z-50 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,.18)]"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900">Notifikasi</p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                        {unreadCount} belum dibaca
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={unreadCount === 0}
+                      onClick={() =>
+                        setReadNotificationIds((current) => [
+                          ...new Set([
+                            ...current,
+                            ...notifications.map((notification) => notification.id),
+                          ]),
+                        ])
+                      }
+                      className="text-[11px] font-extrabold text-green-700 transition hover:text-green-900 disabled:cursor-default disabled:text-slate-300"
+                    >
+                      Tandai semua dibaca
+                    </button>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto p-2">
+                    {notifications.length ? (
+                      notifications.map((notification) => {
+                        const unread = !readNotificationIds.includes(notification.id);
+                        return (
+                          <button
+                            key={notification.id}
+                            type="button"
+                            onClick={() =>
+                              setReadNotificationIds((current) =>
+                                current.includes(notification.id)
+                                  ? current
+                                  : [...current, notification.id],
+                              )
+                            }
+                            className={`flex w-full gap-3 rounded-xl p-3 text-left transition hover:bg-slate-50 ${
+                              unread ? "bg-green-50/70" : ""
+                            }`}
+                          >
+                            <span
+                              className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                                unread ? "bg-green-600" : "bg-slate-200"
+                              }`}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-start justify-between gap-3">
+                                <span className="text-xs font-extrabold text-slate-800">
+                                  {notification.title}
+                                </span>
+                                <span
+                                  className={`shrink-0 text-[9px] font-bold ${
+                                    unread ? "text-green-700" : "text-slate-400"
+                                  }`}
+                                >
+                                  {unread ? "Belum dibaca" : "Dibaca"}
+                                </span>
+                              </span>
+                              <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                                {notification.message}
+                              </span>
+                              <span className="mt-1.5 block text-[10px] font-semibold text-slate-400">
+                                {notification.timestamp}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-5 py-10 text-center">
+                        <Bell className="mx-auto text-slate-300" size={28} />
+                        <p className="mt-3 text-sm font-bold text-slate-500">
+                          Belum ada notifikasi
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Pembaruan akun akan muncul di sini.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="ml-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <div className="hidden items-center gap-2 sm:flex">
-              <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-700">
-                {names[role]
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)}
-              </div>
-              <ChevronDown size={16} className="text-slate-400" />
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Buka menu profil"
+                aria-haspopup="menu"
+                aria-expanded={headerPopover === "profile"}
+                onClick={() =>
+                  setHeaderPopover((current) => (current === "profile" ? null : "profile"))
+                }
+                className={`flex items-center gap-2 rounded-xl p-1 transition hover:bg-slate-100 ${
+                  headerPopover === "profile" ? "bg-slate-100" : ""
+                }`}
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-700">
+                  {names[role]
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)}
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`hidden text-slate-400 transition-transform sm:block ${
+                    headerPopover === "profile" ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+              {headerPopover === "profile" && (
+                <div
+                  role="menu"
+                  aria-label="Menu profil"
+                  className="absolute right-0 top-full z-50 mt-3 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_55px_rgba(15,23,42,.18)]"
+                >
+                  <div className="flex items-center gap-3 border-b border-slate-100 p-4">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-green-100 text-sm font-extrabold text-green-800">
+                      {names[role]
+                        .split(" ")
+                        .map((name) => name[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-extrabold text-slate-900">
+                        {names[role]}
+                      </p>
+                      <p className="mt-0.5 text-xs font-semibold text-green-700">
+                        {roleLabel[role]}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="p-2">
+                    {[
+                      {
+                        label: "Profil Saya",
+                        icon: UserRound,
+                        page: role === "admin" ? "akun" : "profil",
+                      },
+                      {
+                        label: "Pengaturan Akun",
+                        icon: Settings2,
+                        page: role === "admin" ? "akun" : "profil",
+                      },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setHeaderPopover(null);
+                          go(item.page);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                      >
+                        <item.icon size={17} className="text-slate-400" />
+                        {item.label}
+                      </button>
+                    ))}
+                    <div className="my-1 h-px bg-slate-100" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setHeaderPopover(null);
+                        onLogout();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                    >
+                      <LogOut size={17} />
+                      Keluar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1973,8 +3188,12 @@ type RouterProps = {
   go: (p: string) => void;
   reports: Report[];
   setReports: React.Dispatch<React.SetStateAction<Report[]>>;
+  pickedUpReports: string[];
+  setPickedUpReports: React.Dispatch<React.SetStateAction<string[]>>;
   balance: number;
   setBalance: React.Dispatch<React.SetStateAction<number>>;
+  withdrawalRequests: WithdrawalRequest[];
+  setWithdrawalRequests: React.Dispatch<React.SetStateAction<WithdrawalRequest[]>>;
   citizenProfile: UserProfile;
   setCitizenProfile: React.Dispatch<React.SetStateAction<UserProfile>>;
   categories: typeof categoriesSeed;
@@ -1986,6 +3205,16 @@ type RouterProps = {
 
 function PageRouter(props: RouterProps) {
   const { role, page } = props;
+  const authorized = nav[role].some((item) => item.page === page);
+  if (!authorized) {
+    return role === "warga" ? (
+      <CitizenDashboard {...props} />
+    ) : role === "petugas" ? (
+      <StaffDashboard {...props} />
+    ) : (
+      <AdminDashboard {...props} />
+    );
+  }
   if (page === "dashboard")
     return role === "warga" ? (
       <CitizenDashboard {...props} />
@@ -1994,8 +3223,8 @@ function PageRouter(props: RouterProps) {
     ) : (
       <AdminDashboard {...props} />
     );
-  if (page === "edukasi") return <EducationPage />;
-  if (page === "maps") return <MapsPage />;
+  if (page === "edukasi" && role === "warga") return <EducationPage />;
+  if (page === "maps" && role === "warga") return <MapsPage role={role} go={props.go} />;
   if (page === "profil") return <ProfilePage {...props} />;
   if (role === "warga") {
     if (page === "buat-laporan") return <CreateReport {...props} />;
@@ -2006,20 +3235,152 @@ function PageRouter(props: RouterProps) {
   if (role === "petugas") {
     if (page === "tugas") return <TasksPage {...props} />;
     if (page === "verifikasi") return <VerificationPage {...props} />;
-    if (page === "permintaan") return <RequestsPage {...props} />;
   }
   if (role === "admin") {
     if (page === "laporan") return <ReportsPage {...props} />;
     if (page === "akun") return <AccountsPage notify={props.notify} />;
     if (page === "master") return <MasterPage {...props} />;
-    if (page === "distribusi") return <DistributionPage notify={props.notify} />;
+    if (page === "distribusi")
+      return <DistributionPage notify={props.notify} categories={props.categories} />;
+    if (page === "permintaan") return <AdminWithdrawalPage {...props} />;
   }
   return <Empty title="Halaman tidak ditemukan" />;
 }
 
+function DepositTracker({ report }: { report: Report }) {
+  const stages: Array<{
+    stage: TrackerStage;
+    description: string;
+  }> =
+    report.method === "Pickup"
+      ? [
+          {
+            stage: "Request Terkirim",
+            description: "Laporan setoran berhasil diterima sistem.",
+          },
+          {
+            stage: "Petugas dalam Perjalanan",
+            description: "Petugas menuju lokasi penjemputan.",
+          },
+          {
+            stage: "Petugas Memverifikasi",
+            description: "Sampah sedang ditimbang dan diverifikasi.",
+          },
+          {
+            stage: "Poin Saldo Didapatkan",
+            description: "Nilai setoran telah ditambahkan ke saldo.",
+          },
+        ]
+      : [
+          {
+            stage: "Request Terkirim",
+            description: "Laporan Drop-off berhasil diterima sistem.",
+          },
+          {
+            stage: "Petugas Memverifikasi",
+            description: "Sampah sedang ditimbang dan diverifikasi.",
+          },
+          {
+            stage: "Poin Saldo Didapatkan",
+            description: "Nilai setoran telah ditambahkan ke saldo.",
+          },
+        ];
+  const fallbackHistory: NonNullable<Report["trackerHistory"]> = [
+    { stage: "Request Terkirim", timestamp: report.date },
+  ];
+  if (report.status === "Selesai") {
+    if (report.method === "Pickup") {
+      fallbackHistory.push({ stage: "Petugas dalam Perjalanan", timestamp: report.date });
+    }
+    fallbackHistory.push(
+      { stage: "Petugas Memverifikasi", timestamp: report.date },
+      { stage: "Poin Saldo Didapatkan", timestamp: report.date },
+    );
+  }
+  const history = report.trackerHistory?.length ? report.trackerHistory : fallbackHistory;
+  const historyByStage = new Map(history.map((entry) => [entry.stage, entry]));
+  const currentIndex = stages.reduce(
+    (latest, item, index) => (historyByStage.has(item.stage) ? index : latest),
+    0,
+  );
+
+  return (
+    <section aria-label={`Tracker status ${report.id}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[.12em] text-green-700">
+            Tracker Status Setoran
+          </p>
+          <p className="mt-1 text-sm font-bold text-slate-800">{report.id}</p>
+        </div>
+        <Badge tone={report.method === "Pickup" ? "blue" : "green"}>{report.method}</Badge>
+      </div>
+      <div className="relative mt-6">
+        <span className="absolute bottom-6 left-[17px] top-5 w-px bg-slate-200 md:hidden" />
+        <span className="absolute left-[12%] right-[12%] top-[17px] hidden h-px bg-slate-200 md:block" />
+        <div
+          className={`relative grid gap-0 ${
+            stages.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"
+          }`}
+        >
+          {stages.map((item, index) => {
+            const historyItem = historyByStage.get(item.stage);
+            const reached = Boolean(historyItem);
+            const current = index === currentIndex;
+            return (
+              <div
+                key={item.stage}
+                className="relative flex gap-3 pb-6 last:pb-0 md:block md:px-2 md:pb-0 md:text-center"
+              >
+                <span
+                  className={`relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 md:mx-auto ${
+                    reached
+                      ? "border-green-700 bg-green-700 text-white"
+                      : "border-slate-300 bg-white text-slate-400"
+                  } ${current ? "ring-4 ring-green-100" : ""}`}
+                >
+                  {reached ? (
+                    <Check size={16} strokeWidth={3} />
+                  ) : (
+                    <span className="text-xs font-extrabold">{index + 1}</span>
+                  )}
+                </span>
+                <div className="pt-0.5 md:pt-3">
+                  <p
+                    className={`text-xs font-extrabold ${
+                      current ? "text-green-800" : reached ? "text-slate-800" : "text-slate-400"
+                    }`}
+                  >
+                    {item.stage}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-slate-500">{item.description}</p>
+                  {historyItem && (
+                    <p className="mt-1.5 text-[10px] font-bold text-green-700">
+                      {historyItem.timestamp}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function CitizenDashboard({ go, reports, balance }: RouterProps) {
   const [visible, setVisible] = useState(false);
+  const [partnerMapKey, setPartnerMapKey] = useState(0);
+  const partnerMapRef = useRef<HTMLDivElement>(null);
   const mine = reports.filter((r) => r.citizen === "Ayu Lestari");
+  const [trackerId, setTrackerId] = useState(mine[0]?.id || "");
+  const trackedReport = mine.find((report) => report.id === trackerId) || mine[0];
+  const encodedPartnerAddress = encodeURIComponent(grahaPenaLocation.address);
+  const focusPartnerMap = () => {
+    setPartnerMapKey((current) => current + 1);
+    partnerMapRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
   return (
     <>
       <div className="mb-7 rounded-2xl bg-green-800 p-6 text-white sm:flex sm:items-center sm:justify-between sm:p-8">
@@ -2099,7 +3460,7 @@ function CitizenDashboard({ go, reports, balance }: RouterProps) {
             {mine.slice(0, 3).map((r) => (
               <button
                 key={r.id}
-                onClick={() => go("riwayat")}
+                onClick={() => setTrackerId(r.id)}
                 className="flex w-full items-center gap-4 rounded-xl border border-slate-100 p-3 text-left hover:border-green-200 hover:bg-green-50/50"
               >
                 <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-600">
@@ -2118,31 +3479,76 @@ function CitizenDashboard({ go, reports, balance }: RouterProps) {
               </button>
             ))}
           </div>
+          {trackedReport && (
+            <div className="mt-6 border-t border-slate-100 pt-6">
+              <DepositTracker report={trackedReport} />
+            </div>
+          )}
         </Card>
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-extrabold">Bank sampah terdekat</h2>
-              <p className="mt-1 text-xs text-slate-500">Lokasi aktif dan terverifikasi</p>
+              <h2 className="font-extrabold">Bank Sampah Mitra</h2>
+              <p className="mt-1 text-xs text-slate-500">Lokasi mitra penyetoran SIMPANWASTE.</p>
             </div>
             <MapPin className="text-green-700" />
           </div>
-          <div className="map-mini mt-5">
-            <div className="map-road a" />
-            <div className="map-road b" />
-            <span className="map-pin left-[48%] top-[38%]">
-              <MapPin size={18} />
-            </span>
+          <div ref={partnerMapRef} className="map-mini mt-5 bg-slate-100">
+            <iframe
+              key={partnerMapKey}
+              title="Peta Bank Sampah Graha Pena Palembang"
+              src={`https://www.google.com/maps?q=${encodedPartnerAddress}&z=16&output=embed`}
+              className="h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
           </div>
-          <h3 className="mt-4 text-sm font-bold">{banks[0].name}</h3>
-          <p className="mt-1 text-xs text-slate-500">{banks[0].address}</p>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-xs text-slate-500">
-              <Clock3 size={14} />
-              {banks[0].hours}
-            </span>
+          <button
+            type="button"
+            onClick={focusPartnerMap}
+            className="mt-4 w-full rounded-xl p-1 text-left transition hover:bg-green-50"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-extrabold">{grahaPenaLocation.name}</h3>
+              <Badge tone="green">Mitra SIMPANWASTE</Badge>
+            </div>
+            <div className="mt-3 space-y-2 text-xs leading-5 text-slate-500">
+              <p className="flex items-start gap-2">
+                <MapPin size={14} className="mt-0.5 shrink-0 text-green-700" />
+                {grahaPenaLocation.address}.
+              </p>
+              <p className="flex items-start gap-2">
+                <Leaf size={14} className="mt-0.5 shrink-0 text-green-700" />
+                {grahaPenaLocation.landmark}
+              </p>
+              <p className="flex items-start gap-2">
+                <Clock3 size={14} className="mt-0.5 shrink-0 text-slate-400" />
+                <span>
+                  <strong className="text-slate-600">Senin–Jumat:</strong>{" "}
+                  {grahaPenaLocation.weekdaySchedule}
+                </span>
+              </p>
+              <p className="flex items-start gap-2">
+                <CalendarDays size={14} className="mt-0.5 shrink-0 text-slate-400" />
+                <span>
+                  <strong className="text-slate-600">Sabtu:</strong>{" "}
+                  {grahaPenaLocation.saturdaySchedule}
+                </span>
+              </p>
+            </div>
+          </button>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${encodedPartnerAddress}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-bold text-slate-500 transition hover:text-green-700"
+            >
+              Petunjuk arah
+            </a>
             <button onClick={() => go("maps")} className="text-xs font-bold text-green-700">
-              Buka maps
+              Buka Maps
             </button>
           </div>
         </Card>
@@ -2621,30 +4027,280 @@ function EducationPage() {
   );
 }
 
+function WasteCategoryCombobox({
+  categories,
+  onSelect,
+}: {
+  categories: typeof categoriesSeed;
+  onSelect: (value: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const filteredCategories = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase("id-ID");
+    if (!normalizedQuery) return categories;
+    return categories.filter((item) =>
+      item.name.toLocaleLowerCase("id-ID").includes(normalizedQuery),
+    );
+  }, [categories, query]);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    setHighlightedIndex((current) => Math.min(current, Math.max(filteredCategories.length - 1, 0)));
+  }, [filteredCategories.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    document
+      .getElementById(`waste-category-${highlightedIndex}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex, open]);
+
+  const selectCategory = (name: string) => {
+    onSelect(name);
+    setQuery("");
+    setOpen(false);
+    setHighlightedIndex(0);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="relative">
+        <Search
+          size={17}
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          ref={inputRef}
+          type="text"
+          role="combobox"
+          aria-label="Cari dan pilih kategori sampah"
+          aria-autocomplete="list"
+          aria-controls="waste-category-options"
+          aria-expanded={open}
+          aria-activedescendant={
+            open && filteredCategories[highlightedIndex]
+              ? `waste-category-${highlightedIndex}`
+              : undefined
+          }
+          className="input bg-[#f8faf8] py-3 pl-11 pr-20"
+          placeholder="Cari jenis sampah..."
+          value={query}
+          onClick={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            setHighlightedIndex(0);
+          }}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+            setHighlightedIndex(0);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setOpen(true);
+              if (filteredCategories.length) {
+                setHighlightedIndex((current) =>
+                  Math.min(current + 1, filteredCategories.length - 1),
+                );
+              }
+            } else if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setOpen(true);
+              if (filteredCategories.length) {
+                setHighlightedIndex((current) => Math.max(current - 1, 0));
+              }
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              const highlighted = filteredCategories[highlightedIndex];
+              if (open && highlighted) selectCategory(highlighted.name);
+            } else if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+              setQuery("");
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            if (open) {
+              setOpen(false);
+            } else {
+              setOpen(true);
+              window.requestAnimationFrame(() => inputRef.current?.focus());
+            }
+          }}
+          aria-label={open ? "Tutup daftar kategori" : "Buka daftar kategori"}
+          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-green-700"
+        >
+          <ChevronDown size={17} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {open && (
+        <div
+          id="waste-category-options"
+          role="listbox"
+          className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_45px_rgba(15,23,42,.16)]"
+        >
+          {filteredCategories.length ? (
+            filteredCategories.map((item, index) => {
+              const highlighted = index === highlightedIndex;
+              return (
+                <button
+                  id={`waste-category-${index}`}
+                  key={item.name}
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectCategory(item.name)}
+                  className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition ${
+                    highlighted ? "bg-green-50" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="flex items-start gap-3">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-green-50 text-green-700">
+                      <Plus size={12} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-bold text-slate-800">{item.name}</span>
+                      <span className="mt-0.5 block text-[11px] leading-4 text-slate-400">
+                        {item.desc}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-4 py-5 text-center text-sm font-semibold text-slate-500">
+              Jenis sampah tidak ditemukan
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CreateReport({ go, reports, setReports, notify, categories, minPickup }: RouterProps) {
   const [step, setStep] = useState(1);
-  const [category, setCategory] = useState(categories[0]?.name || "");
-  const [weight, setWeight] = useState(0);
+  const [wasteItems, setWasteItems] = useState<
+    Array<{
+      id: string;
+      category: string;
+      estimate: number;
+      condition?: WasteCondition;
+    }>
+  >([]);
+  const wasteItemSequence = useRef(0);
+  const [showStepOneErrors, setShowStepOneErrors] = useState(false);
   const [method, setMethod] = useState<"Pickup" | "Drop-off">("Drop-off");
-  const [location, setLocation] = useState(banks[0].name);
-  const pickupOk = weight >= minPickup;
+  const [pickupLocation, setPickupLocation] = useState("Jl. Ki Merogan, Kertapati, Palembang");
+  const dropOffDestination = grahaPenaLocation.name;
+  const totalWeight = wasteItems.reduce((total, item) => total + (item.estimate || 0), 0);
+  const pickupOk = totalWeight >= minPickup;
+  const hasValidCategories =
+    wasteItems.length > 0 &&
+    wasteItems.every((item) => categories.some((category) => category.name === item.category));
+  const hasValidWeights = wasteItems.every((item) => item.estimate > 0);
+  const hasValidConditions = wasteItems.every(
+    (item) => item.condition && wasteConditions.includes(item.condition),
+  );
+  const combinationKeys = wasteItems
+    .filter((item) => item.condition)
+    .map((item) => `${item.category}::${item.condition}`);
+  const hasUniqueCombinations = new Set(combinationKeys).size === combinationKeys.length;
+  useEffect(() => {
+    if (!pickupOk && method === "Pickup") setMethod("Drop-off");
+  }, [method, pickupOk]);
+
+  const addWasteItem = (name: string) => {
+    if (!categories.some((item) => item.name === name)) return;
+    const usedConditions = wasteItems
+      .filter((item) => item.category === name && item.condition)
+      .map((item) => item.condition);
+    if (usedConditions.length === wasteConditions.length) {
+      return notify(`Semua kombinasi kondisi untuk ${name} sudah ditambahkan.`);
+    }
+    wasteItemSequence.current += 1;
+    setWasteItems((current) => [
+      ...current,
+      {
+        id: `waste-item-${Date.now()}-${wasteItemSequence.current}`,
+        category: name,
+        estimate: 0,
+      },
+    ]);
+  };
+  const selectItemCondition = (itemId: string, condition: WasteCondition) => {
+    const currentItem = wasteItems.find((item) => item.id === itemId);
+    if (!currentItem) return;
+    const duplicate = wasteItems.some(
+      (item) =>
+        item.id !== itemId &&
+        item.category === currentItem.category &&
+        item.condition === condition,
+    );
+    if (duplicate) {
+      return notify(
+        `${currentItem.category} dengan kondisi "${condition}" sudah ditambahkan. Ubah estimasi berat pada item yang sudah ada.`,
+      );
+    }
+    setWasteItems((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, condition } : item)),
+    );
+  };
   const next = () => {
-    if (step === 1 && weight <= 0) return notify("Masukkan estimasi berat yang valid.");
+    if (step === 1) {
+      setShowStepOneErrors(true);
+      if (!hasValidCategories) return notify("Pilih minimal satu jenis sampah dari data master.");
+      if (!hasValidWeights)
+        return notify("Masukkan estimasi berat yang valid untuk setiap kategori.");
+      if (!hasValidConditions) return notify("Pilih kondisi sampah untuk setiap kategori.");
+      if (!hasUniqueCombinations)
+        return notify("Kombinasi kategori dan kondisi yang sama tidak boleh diduplikasi.");
+    }
     if (step === 2 && method === "Pickup" && !pickupOk) return;
     setStep(Math.min(4, step + 1));
   };
   const submit = () => {
+    if (!hasValidCategories || !hasValidWeights || !hasValidConditions || !hasUniqueCombinations)
+      return notify("Lengkapi kategori, estimasi berat, dan kondisi sebelum mengirim laporan.");
     const report: Report = {
       id: `SW-250318-${String(reports.length + 25).padStart(3, "0")}`,
       citizen: "Ayu Lestari",
       phone: "0812 7788 2341",
-      category,
-      estimate: weight,
+      category: wasteItems.map((item) => item.category).join(", "),
+      estimate: totalWeight,
       method,
       status: "Menunggu",
       date: "18 Mar 2025",
-      location,
+      location: method === "Pickup" ? pickupLocation : dropOffDestination,
       assigned: "Rizky Pratama",
+      trackerHistory: [{ stage: "Request Terkirim", timestamp: trackerTimestamp() }],
+      categoryWeights: wasteItems.map((item) => ({
+        category: item.category,
+        estimate: item.estimate,
+        conditions: item.condition ? [item.condition] : [],
+      })),
     };
     setReports((r) => [report, ...r]);
     notify("Laporan berhasil dibuat dan diteruskan ke petugas.");
@@ -2718,58 +4374,166 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                     </p>
                     <h2 className="mt-1 text-xl font-extrabold text-slate-900">Informasi sampah</h2>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Pilih satu kategori utama dan masukkan estimasi beratnya.
+                      Pilih kategori sampah dan masukkan estimasi berat untuk masing-masing.
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-8 space-y-6">
-                  <label className="block">
-                    <span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
+                  <div>
+                    <span
+                      id="waste-category-label"
+                      className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700"
+                    >
                       <Recycle size={16} className="text-green-700" /> Kategori sampah
                     </span>
-                    <select
-                      className="input bg-[#f8faf8] py-3"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      {categories.map((c) => (
-                        <option key={c.name}>{c.name}</option>
-                      ))}
-                    </select>
+                    <WasteCategoryCombobox categories={categories} onSelect={addWasteItem} />
                     <span className="mt-2 block text-xs leading-5 text-slate-400">
-                      Pilih kategori yang paling sesuai dengan sampah utama Anda.
+                      Kategori yang sama dapat ditambahkan lagi dengan kondisi yang berbeda.
                     </span>
-                  </label>
+                    {showStepOneErrors && !hasValidCategories && (
+                      <p className="mt-2 text-xs font-semibold text-red-600">
+                        Pilih minimal satu jenis sampah.
+                      </p>
+                    )}
+                  </div>
 
-                  <label className="block">
-                    <span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
-                      <Scale size={16} className="text-green-700" /> Estimasi berat
-                    </span>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0.1"
-                        step=".1"
-                        className="input bg-[#f8faf8] py-3 pr-14"
-                        placeholder="Contoh: 6,5"
-                        value={weight || ""}
-                        onChange={(e) => setWeight(Number(e.target.value))}
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
-                        kg
+                  {wasteItems.length > 0 && (
+                    <div>
+                      <span className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-700">
+                        <Scale size={16} className="text-green-700" /> Daftar item sampah
                       </span>
+                      <div className="space-y-3">
+                        {wasteItems.map((item, itemIndex) => {
+                          const invalid = showStepOneErrors && !(item.estimate > 0);
+                          const invalidCondition = showStepOneErrors && !item.condition;
+                          return (
+                            <div
+                              key={item.id}
+                              className="block rounded-xl border border-slate-200 bg-[#f8faf8] p-4"
+                            >
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-green-700">
+                                    Item {itemIndex + 1}
+                                  </p>
+                                  <p className="mt-1 text-sm font-bold text-slate-800">
+                                    {item.category}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setWasteItems((current) =>
+                                      current.filter((candidate) => candidate.id !== item.id),
+                                    )
+                                  }
+                                  className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 active:scale-[.97]"
+                                >
+                                  <Trash2 size={14} /> Hapus
+                                </button>
+                              </div>
+                              <label className="block">
+                                <span className="mb-2 block text-xs font-semibold text-slate-600">
+                                  Estimasi berat (kg)
+                                </span>
+                                <span className="relative block">
+                                  <input
+                                    type="number"
+                                    min="0.1"
+                                    step=".1"
+                                    inputMode="decimal"
+                                    className={`input bg-white py-3 pr-14 ${
+                                      invalid
+                                        ? "border-red-400 ring-2 ring-red-100 focus:border-red-400"
+                                        : ""
+                                    }`}
+                                    placeholder="Estimasi berat (kg)"
+                                    value={item.estimate || ""}
+                                    aria-invalid={invalid}
+                                    onChange={(event) =>
+                                      setWasteItems((current) =>
+                                        current.map((candidate) =>
+                                          candidate.id === item.id
+                                            ? {
+                                                ...candidate,
+                                                estimate: Number(event.target.value),
+                                              }
+                                            : candidate,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                                    kg
+                                  </span>
+                                </span>
+                              </label>
+                              {invalid && (
+                                <span className="mt-2 block text-xs font-semibold text-red-600">
+                                  Estimasi berat harus lebih dari 0 kg.
+                                </span>
+                              )}
+                              <fieldset className="mt-4">
+                                <legend className="mb-2 text-xs font-semibold text-slate-600">
+                                  Kondisi sampah
+                                </legend>
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {wasteConditions.map((condition) => (
+                                    <label
+                                      key={condition}
+                                      className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-xs font-semibold leading-5 transition ${
+                                        item.condition === condition
+                                          ? "border-green-500 bg-green-50 text-green-900"
+                                          : "border-slate-200 bg-white text-slate-600 hover:border-green-200"
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name={`waste-condition-${item.id}`}
+                                        value={condition}
+                                        checked={item.condition === condition}
+                                        onChange={() => selectItemCondition(item.id, condition)}
+                                        className="mt-0.5 accent-green-700"
+                                      />
+                                      <span>{condition}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                                {invalidCondition && (
+                                  <span className="mt-2 block text-xs font-semibold text-red-600">
+                                    Pilih satu kondisi sampah.
+                                  </span>
+                                )}
+                              </fieldset>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                        <span className="text-sm font-bold text-green-900">
+                          Total estimasi berat
+                        </span>
+                        <span className="text-lg font-extrabold text-green-800">
+                          {totalWeight.toLocaleString("id-ID", {
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          kg
+                        </span>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-slate-500">
+                        Kondisi yang dipilih merupakan informasi awal dari Warga. Petugas tetap
+                        memverifikasi kondisi aktual saat penimbangan manual.
+                      </p>
                     </div>
-                    <span className="mt-2 block text-xs leading-5 text-slate-400">
-                      Timbang secara kasar jika memungkinkan. Berat final ditentukan petugas.
-                    </span>
-                  </label>
+                  )}
 
                   <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
                     <Scale size={17} className="mt-0.5 shrink-0" />
                     <p>
                       <strong>Data demonstrasi:</strong> Minimum pickup saat ini adalah{" "}
-                      <strong>{minPickup} kg</strong>.
+                      <strong>{minPickup} kg</strong>. Total seluruh kategori digunakan untuk
+                      menentukan ketersediaan Pickup.
                     </p>
                   </div>
                 </div>
@@ -2831,8 +4595,8 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                   <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                     <XCircle className="shrink-0" size={20} />
                     <p>
-                      Pickup belum tersedia karena estimasi <strong>{weight} kg</strong> di bawah
-                      minimum {minPickup} kg. Silakan pilih Drop-off.
+                      Pickup belum tersedia karena total estimasi <strong>{totalWeight} kg</strong>{" "}
+                      di bawah minimum {minPickup} kg. Disarankan memilih Drop-off.
                     </p>
                   </div>
                 )}
@@ -2849,12 +4613,14 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                     <p className="text-xs font-extrabold uppercase tracking-[.13em] text-green-700">
                       Langkah 03
                     </p>
-                    <h2 className="mt-1 text-xl font-extrabold">Pilih lokasi</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {method === "Pickup"
-                        ? "Tentukan titik penjemputan yang mudah diakses."
-                        : "Pilih bank sampah tujuan."}
-                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold">
+                      {method === "Pickup" ? "Tentukan Lokasi Penjemputan" : "Tujuan Penyetoran"}
+                    </h2>
+                    {method === "Pickup" && (
+                      <p className="mt-1 text-sm text-slate-500">
+                        Tentukan titik penjemputan yang mudah diakses.
+                      </p>
+                    )}
                   </div>
                 </div>
                 {method === "Pickup" ? (
@@ -2871,35 +4637,64 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                         Alamat penjemputan
                       </span>
                       <input
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
+                        value={pickupLocation}
+                        onChange={(e) => setPickupLocation(e.target.value)}
                         className="input bg-[#f8faf8] py-3"
                         placeholder="Masukkan alamat lengkap"
                       />
                     </label>
                   </>
                 ) : (
-                  <div className="mt-7 space-y-3">
-                    {banks.map((b) => (
-                      <button
-                        key={b.name}
-                        onClick={() => setLocation(b.name)}
-                        className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition ${
-                          location === b.name
-                            ? "border-green-600 bg-green-50 shadow-sm"
-                            : "border-slate-200 bg-slate-50/60 hover:border-green-200"
-                        }`}
-                      >
-                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-green-700 shadow-sm">
-                          <MapPin size={19} />
+                  <div className="mt-5">
+                    <div className="relative overflow-hidden rounded-2xl border border-green-200 bg-[#eef8f1] p-5 sm:p-6">
+                      <div className="absolute -right-10 -top-12 h-36 w-36 rounded-full border-[25px] border-green-600/[.055]" />
+                      <div className="relative flex items-start gap-4">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-green-700 text-white shadow-sm">
+                          <Recycle size={23} />
                         </div>
                         <div>
-                          <p className="text-sm font-extrabold">{b.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">{b.address}</p>
-                          <p className="mt-2 text-xs font-semibold text-green-700">{b.hours}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-lg font-extrabold tracking-tight text-slate-900">
+                              {grahaPenaLocation.shortName}
+                            </p>
+                            <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.1em] text-green-800">
+                              Mitra SIMPANWASTE
+                            </span>
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-slate-600">
+                            Lokasi ini merupakan tujuan tetap untuk seluruh penyetoran dengan metode
+                            Drop-off.
+                          </p>
                         </div>
-                      </button>
-                    ))}
+                      </div>
+                      <div className="relative mt-5 space-y-3 border-t border-green-200 pt-4 text-xs leading-5 text-slate-600">
+                        <p className="flex items-start gap-3">
+                          <MapPin className="mt-0.5 shrink-0 text-green-700" size={17} />
+                          <span>
+                            {grahaPenaLocation.address}. {grahaPenaLocation.landmark}
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <Clock3 className="mt-0.5 shrink-0 text-green-700" size={17} />
+                          <span>
+                            <strong>Senin–Jumat:</strong> {grahaPenaLocation.weekdaySchedule}
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-3">
+                          <CalendarDays className="mt-0.5 shrink-0 text-green-700" size={17} />
+                          <span>
+                            <strong>Sabtu:</strong> {grahaPenaLocation.saturdaySchedule}
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-3 pt-1">
+                          <Recycle className="mt-0.5 shrink-0 text-green-700" size={17} />
+                          <span className="font-semibold text-green-900">
+                            Untuk metode Drop-off, sampah diantarkan secara langsung oleh warga ke
+                            Bank Sampah Graha Pena.
+                          </span>
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2922,11 +4717,34 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                   </div>
                 </div>
                 <dl className="mt-7 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-[#f8faf8] px-5">
+                  {wasteItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-col gap-3 py-4 text-sm sm:flex-row sm:justify-between"
+                    >
+                      <dt>
+                        <p className="font-bold text-slate-800">{item.category}</p>
+                        <p className="mt-1 text-xs text-slate-500">Kondisi sampah</p>
+                      </dt>
+                      <dd className="sm:max-w-[65%] sm:text-right">
+                        <p className="font-extrabold text-slate-800">{item.estimate} kg</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">
+                          {item.condition && (
+                            <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-800">
+                              {item.condition}
+                            </span>
+                          )}
+                        </div>
+                      </dd>
+                    </div>
+                  ))}
                   {[
-                    ["Kategori", category],
-                    ["Estimasi berat", `${weight} kg`],
+                    ["Total estimasi berat", `${totalWeight} kg`],
                     ["Metode", method],
-                    ["Lokasi tujuan", location],
+                    [
+                      method === "Pickup" ? "Titik penjemputan" : "Tujuan Drop-off",
+                      method === "Pickup" ? pickupLocation : dropOffDestination,
+                    ],
                     ["Status awal", "Menunggu"],
                   ].map(([a, b]) => (
                     <div key={a} className="flex justify-between gap-5 py-4 text-sm">
@@ -2937,8 +4755,9 @@ function CreateReport({ go, reports, setReports, notify, categories, minPickup }
                 </dl>
                 <div className="mt-5 flex gap-3 rounded-xl bg-sky-50 p-4 text-xs leading-5 text-sky-800">
                   <ShieldCheck size={17} className="shrink-0" />
-                  Nilai setoran dihitung berdasarkan berat aktual, kondisi sampah, dan harga master
-                  saat penimbangan manual.
+                  {method === "Drop-off"
+                    ? "Warga harus mengantarkan sampah secara langsung ke Bank Sampah Graha Pena Palembang. Nilai setoran dihitung setelah penimbangan manual."
+                    : "Petugas akan menuju alamat atau titik penjemputan yang dipilih. Nilai setoran dihitung setelah penimbangan manual."}
                 </div>
               </div>
             )}
@@ -3193,7 +5012,7 @@ function ReportsPage({ reports, personal, notify }: RouterProps & { personal?: b
         <ReportTable reports={data} onAction={setSelected} />
       </Card>
       {selected && (
-        <Modal title="Detail laporan" onClose={() => setSelected(null)}>
+        <Modal title="Detail laporan" onClose={() => setSelected(null)} wide={personal}>
           <dl className="divide-y divide-slate-100">
             {[
               ["ID laporan", selected.id],
@@ -3210,6 +5029,11 @@ function ReportsPage({ reports, personal, notify }: RouterProps & { personal?: b
               </div>
             ))}
           </dl>
+          {personal && (
+            <div className="mt-6 border-t border-slate-100 pt-6">
+              <DepositTracker report={selected} />
+            </div>
+          )}
           {personal && selected.status === "Menunggu" && (
             <Button
               onClick={() => {
@@ -3316,12 +5140,20 @@ function BalancePage({ balance }: RouterProps) {
   );
 }
 
-function WithdrawalPage({ balance, notify }: RouterProps) {
+function WithdrawalPage({
+  balance,
+  notify,
+  withdrawalRequests,
+  setWithdrawalRequests,
+  citizenProfile,
+}: RouterProps) {
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [type, setType] = useState("Penarikan manual");
   const [amount, setAmount] = useState(0);
   const [amountTouched, setAmountTouched] = useState(false);
+  const [description, setDescription] = useState("");
+  const [previewRequest, setPreviewRequest] = useState<WithdrawalRequest | null>(null);
+  const type = "Penarikan manual";
   const currentBalance = balance;
   const amountValid = amount > 0 && amount <= currentBalance;
   const formValid = amountValid;
@@ -3334,9 +5166,33 @@ function WithdrawalPage({ balance, notify }: RouterProps) {
   };
 
   const sendRequest = () => {
+    const nextNumber =
+      Math.max(
+        0,
+        ...withdrawalRequests.map((request) => Number(request.id.replace(/\D/g, "")) || 0),
+      ) + 1;
+    const submittedDate = new Intl.DateTimeFormat("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date());
+    setWithdrawalRequests((current) => [
+      {
+        id: `WD-${String(nextNumber).padStart(3, "0")}`,
+        citizenId: citizenProfile.username,
+        citizenName: citizenProfile.name,
+        type,
+        amount,
+        description: description.trim() || "Penarikan saldo manual",
+        submittedDate,
+        status: "Menunggu",
+      },
+      ...current,
+    ]);
     setConfirmOpen(false);
     notify("Permintaan berhasil dikirim untuk diproses manual.");
     setAmount(0);
+    setDescription("");
     setAmountTouched(false);
   };
 
@@ -3368,27 +5224,27 @@ function WithdrawalPage({ balance, notify }: RouterProps) {
             {balanceVisible ? "Sembunyikan Saldo" : "Lihat Saldo"}
           </button>
           <div className="mt-5 border-t border-green-200/80 pt-5 text-xs leading-5 text-slate-600">
-            Permintaan hanya dicatat dan diproses secara manual oleh petugas bank sampah. Tidak ada
+            Permintaan hanya dicatat dan diproses secara manual oleh Admin Bank Sampah. Tidak ada
             payment gateway, e-wallet, transfer bank, atau pencairan otomatis.
           </div>
         </Card>
         <Card>
-          <form onSubmit={submit}>
-            <Field label="Jenis permintaan">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {["Penarikan manual", "Potong iuran bulanan"].map((t) => (
-                  <button
-                    type="button"
-                    onClick={() => setType(t)}
-                    key={t}
-                    className={`rounded-xl border-2 p-4 text-left text-sm font-bold ${type === t ? "border-green-600 bg-green-50 text-green-800" : "border-slate-200"}`}
-                  >
-                    {t}
-                  </button>
-                ))}
+          <form onSubmit={submit} className="space-y-5">
+            <div>
+              <p className="mb-2 text-sm font-semibold text-slate-700">Jenis permintaan</p>
+              <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-green-700 text-white">
+                  <HandCoins size={17} />
+                </div>
+                <div>
+                  <p className="text-sm font-extrabold text-green-900">Penarikan manual</p>
+                  <p className="mt-0.5 text-xs text-green-700">
+                    Diproses langsung oleh pengelola bank sampah.
+                  </p>
+                </div>
               </div>
-            </Field>
-            <div className="mt-5">
+            </div>
+            <div>
               <Field label="Nominal">
                 <input
                   value={amount ? money(amount) : ""}
@@ -3416,20 +5272,99 @@ function WithdrawalPage({ balance, notify }: RouterProps) {
                 )}
               </Field>
             </div>
-            <div className="mt-5">
+            <div>
               <Field label="Keterangan">
                 <textarea
                   className="input min-h-20 resize-none"
                   placeholder="Catatan opsional untuk petugas"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
                 />
               </Field>
             </div>
-            <Button type="submit" disabled={!formValid} className="mt-6 w-full">
+            <Button type="submit" disabled={!formValid} className="w-full">
               Kirim permintaan <ArrowRight size={17} />
             </Button>
           </form>
         </Card>
       </div>
+      <Card className="mt-6">
+        <div>
+          <h2 className="font-extrabold text-slate-900">Riwayat Permintaan Penarikan</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Pantau proses manual dan bukti transaksi milik akun Anda.
+          </p>
+        </div>
+        <div className="mt-5 space-y-3">
+          {withdrawalRequests
+            .filter((request) => request.citizenId === citizenProfile.username)
+            .map((request) => (
+              <article
+                key={request.id}
+                className="rounded-xl border border-slate-200 bg-slate-50/60 p-4"
+              >
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-extrabold text-green-700">{request.id}</p>
+                      <Badge tone={request.status === "Selesai" ? "green" : "amber"}>
+                        {request.status}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm font-extrabold text-slate-900">{request.type}</p>
+                    <p className="mt-1 text-xs text-slate-500">{request.submittedDate}</p>
+                  </div>
+                  <p className="text-lg font-extrabold text-slate-900">{money(request.amount)}</p>
+                </div>
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  {request.status === "Selesai" ? (
+                    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                      <div>
+                        <p className="text-xs text-slate-500">Tanggal diproses</p>
+                        <p className="mt-1 text-sm font-bold text-slate-800">
+                          {request.processedDate}
+                        </p>
+                        <p className="mt-2 text-xs font-semibold text-green-700">
+                          {request.type === "Potong iuran bulanan"
+                            ? "Bukti Pemotongan Iuran"
+                            : "Bukti Transfer"}
+                        </p>
+                      </div>
+                      {request.proof ? (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            variant="secondary"
+                            onClick={() => setPreviewRequest(request)}
+                            className="min-h-9 px-3 text-xs"
+                          >
+                            <Eye size={15} /> Lihat Bukti
+                          </Button>
+                          <a
+                            href={request.proof.dataUrl}
+                            download={request.proof.name}
+                            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-green-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-800"
+                          >
+                            <Download size={15} /> Unduh Bukti
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-xs font-semibold text-slate-400">
+                          Bukti transfer belum tersedia
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-semibold text-amber-700">
+                      Bukti transfer belum tersedia
+                    </p>
+                  )}
+                </div>
+              </article>
+            ))}
+          {withdrawalRequests.filter((request) => request.citizenId === citizenProfile.username)
+            .length === 0 && <Empty title="Belum ada permintaan penarikan" compact />}
+        </div>
+      </Card>
       {confirmOpen && (
         <Modal title="Konfirmasi Permintaan" onClose={() => setConfirmOpen(false)}>
           <div className="rounded-xl bg-green-50 p-4">
@@ -3438,7 +5373,7 @@ function WithdrawalPage({ balance, notify }: RouterProps) {
             <InfoRow label="Nominal" value={money(amount)} />
           </div>
           <p className="mt-4 text-sm leading-6 text-slate-500">
-            Permintaan akan diteruskan kepada petugas bank sampah dan diproses secara manual.
+            Permintaan akan diteruskan kepada Admin Bank Sampah dan diproses secara manual.
           </p>
           <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
@@ -3450,11 +5385,49 @@ function WithdrawalPage({ balance, notify }: RouterProps) {
           </div>
         </Modal>
       )}
+      {previewRequest?.proof && previewRequest.citizenId === citizenProfile.username && (
+        <Modal title="Bukti Transaksi" onClose={() => setPreviewRequest(null)} wide>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {previewRequest.proof.type === "application/pdf" ? (
+              <iframe
+                title={`Bukti ${previewRequest.id}`}
+                src={previewRequest.proof.dataUrl}
+                className="h-[65vh] w-full border-0"
+              />
+            ) : (
+              <img
+                src={previewRequest.proof.dataUrl}
+                alt={`Bukti transaksi ${previewRequest.id}`}
+                className="max-h-[65vh] w-full object-contain"
+              />
+            )}
+          </div>
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setPreviewRequest(null)}>
+              Tutup
+            </Button>
+            <a
+              href={previewRequest.proof.dataUrl}
+              download={previewRequest.proof.name}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-800"
+            >
+              <Download size={16} /> Unduh Bukti
+            </a>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
 
-function TasksPage({ reports, go }: RouterProps) {
+function TasksPage({
+  reports,
+  setReports,
+  go,
+  pickedUpReports,
+  setPickedUpReports,
+  notify,
+}: RouterProps) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("Semua");
   const assigned = reports.filter(
@@ -3491,138 +5464,720 @@ function TasksPage({ reports, go }: RouterProps) {
             <option>Selesai</option>
           </select>
         </div>
-        <ReportTable
-          reports={assigned}
-          actionLabel="Buka tugas"
-          onAction={() => go("verifikasi")}
-        />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID Laporan</th>
+                <th>Warga</th>
+                <th>Lokasi</th>
+                <th>Kategori</th>
+                <th>Berat</th>
+                <th>Status Laporan</th>
+                <th>Status Tugas</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {assigned.map((report) => {
+                const pickedUp = pickedUpReports.includes(report.id);
+                const needsPickup = report.method === "Pickup";
+                const pickupStarted =
+                  report.trackerHistory?.some(
+                    (entry) => entry.stage === "Petugas dalam Perjalanan",
+                  ) || false;
+                return (
+                  <tr key={report.id}>
+                    <td className="font-bold text-green-700">{report.id}</td>
+                    <td>
+                      <p className="font-semibold text-slate-800">{report.citizen}</p>
+                      <p className="text-xs text-slate-400">{report.phone}</p>
+                    </td>
+                    <td className="max-w-52 whitespace-normal leading-5">{report.location}</td>
+                    <td>{report.category}</td>
+                    <td className="font-bold">{report.estimate} kg</td>
+                    <td>
+                      <Badge tone={report.status === "Selesai" ? "green" : "amber"}>
+                        {report.status}
+                      </Badge>
+                    </td>
+                    <td>
+                      {report.status === "Selesai" ? (
+                        <Badge tone="green">Tugas selesai</Badge>
+                      ) : needsPickup ? (
+                        <Badge tone={pickedUp ? "green" : pickupStarted ? "amber" : "slate"}>
+                          {pickedUp
+                            ? "Sudah dijemput"
+                            : pickupStarted
+                              ? "Dalam perjalanan"
+                              : "Belum dijemput"}
+                        </Badge>
+                      ) : (
+                        <Badge tone="blue">Drop-off diterima</Badge>
+                      )}
+                    </td>
+                    <td>
+                      {report.status === "Selesai" ? (
+                        <span className="text-xs font-semibold text-slate-400">Selesai</span>
+                      ) : needsPickup && !pickupStarted ? (
+                        <Button
+                          onClick={() => {
+                            setReports((current) =>
+                              current.map((item) =>
+                                item.id === report.id
+                                  ? addTrackerStage(item, "Petugas dalam Perjalanan")
+                                  : item,
+                              ),
+                            );
+                            notify("Penjemputan dimulai dan tracker Warga diperbarui.");
+                          }}
+                          className="min-h-8 whitespace-nowrap px-3 py-1 text-xs"
+                        >
+                          <Truck size={14} /> Mulai Penjemputan
+                        </Button>
+                      ) : needsPickup && !pickedUp ? (
+                        <Button
+                          onClick={() => {
+                            setPickedUpReports((current) => [...current, report.id]);
+                            notify("Sampah ditandai sudah dijemput. Lanjutkan ke penimbangan.");
+                          }}
+                          className="min-h-8 whitespace-nowrap px-3 py-1 text-xs"
+                        >
+                          <Truck size={14} /> Tandai Dijemput
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => {
+                            window.sessionStorage.setItem(
+                              "simpanwaste-selected-verification",
+                              report.id,
+                            );
+                            go("verifikasi");
+                          }}
+                          className="min-h-8 whitespace-nowrap px-3 py-1 text-xs"
+                        >
+                          <Scale size={14} /> Proses
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {assigned.length === 0 && (
+            <div className="py-12 text-center text-sm text-slate-500">
+              Tidak ada tugas yang sesuai filter.
+            </div>
+          )}
+        </div>
       </Card>
     </>
   );
 }
 
-function VerificationPage({ reports, setReports, setBalance, notify, categories }: RouterProps) {
-  const pending = reports.filter((r) => r.assigned === "Rizky Pratama" && r.status === "Menunggu");
-  const [id, setId] = useState(pending[0]?.id || "");
-  const report = reports.find((r) => r.id === id);
-  const [actual, setActual] = useState(report?.estimate || 0);
-  const [condition, setCondition] = useState<"Bersih" | "Kotor">("Bersih");
-  const cat =
-    categories.find((c) => c.name === report?.category) || categories[0] || categoriesSeed[0];
-  const price = condition === "Bersih" ? cat.clean : cat.dirty;
-  const subtotal = actual * price;
-  const complete = () => {
-    if (!report || actual <= 0) return notify("Masukkan berat aktual yang valid.");
-    setReports((rs) =>
-      rs.map((r) => (r.id === id ? { ...r, status: "Selesai", actual, value: subtotal } : r)),
+function VerificationPage({
+  reports,
+  setReports,
+  setBalance,
+  notify,
+  categories,
+  pickedUpReports,
+}: RouterProps) {
+  const assignedReports = reports.filter((report) => report.assigned === "Rizky Pratama");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"Semua" | Report["status"]>("Semua");
+  const requestedReportId = window.sessionStorage.getItem("simpanwaste-selected-verification");
+  const requestedReport = assignedReports.find(
+    (report) =>
+      report.id === requestedReportId &&
+      (report.status === "Selesai" ||
+        report.method === "Drop-off" ||
+        pickedUpReports.includes(report.id)),
+  );
+  const firstReadyReport =
+    requestedReport ||
+    assignedReports.find(
+      (report) =>
+        report.status === "Menunggu" &&
+        (report.method === "Drop-off" || pickedUpReports.includes(report.id)),
+    ) ||
+    assignedReports[0];
+  const [id, setId] = useState(firstReadyReport?.id || "");
+  const [actualWeights, setActualWeights] = useState<Record<string, Record<string, number>>>({});
+  const [verifiedConditions, setVerifiedConditions] = useState<
+    Record<string, Record<string, WasteCondition[]>>
+  >({});
+  const processingRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    window.sessionStorage.removeItem("simpanwaste-selected-verification");
+  }, []);
+  const report = assignedReports.find((item) => item.id === id);
+  const reportItems = useMemo(() => {
+    if (!report) return [];
+    if (report.verifiedItems?.length) {
+      return report.verifiedItems.map((item) => ({
+        category: item.category,
+        estimate: item.estimatedWeight,
+        conditions: item.citizenConditions,
+      }));
+    }
+    if (report.categoryWeights?.length) return report.categoryWeights;
+    return [{ category: report.category, estimate: report.estimate, conditions: [] }];
+  }, [report]);
+  const visibleReports = assignedReports.filter(
+    (item) =>
+      (statusFilter === "Semua" || item.status === statusFilter) &&
+      (item.id.toLowerCase().includes(search.toLowerCase()) ||
+        item.citizen.toLowerCase().includes(search.toLowerCase())),
+  );
+  const isReady =
+    report?.status === "Selesai" ||
+    report?.method === "Drop-off" ||
+    (report ? pickedUpReports.includes(report.id) : false);
+
+  useEffect(() => {
+    if (!report || report.status !== "Menunggu" || !isReady) return;
+    setReports((current) =>
+      current.map((item) =>
+        item.id === report.id ? addTrackerStage(item, "Petugas Memverifikasi") : item,
+      ),
     );
-    if (report.citizen === "Ayu Lestari") setBalance((b) => b + subtotal);
-    notify(`Penimbangan selesai. Saldo bertambah ${money(subtotal)}.`);
-    const next = pending.find((p) => p.id !== id);
-    setId(next?.id || "");
+  }, [id, isReady, report, setReports]);
+
+  useEffect(() => {
+    if (!report) return;
+    const nextActualWeights: Record<string, number> = {};
+    const nextConditions: Record<string, WasteCondition[]> = {};
+    reportItems.forEach((item, index) => {
+      const itemKey = `${index}:${item.category}`;
+      const savedItem = report.verifiedItems?.[index];
+      nextActualWeights[itemKey] = savedItem?.actualWeight ?? item.estimate;
+      nextConditions[itemKey] =
+        savedItem?.verifiedConditions ||
+        (savedItem?.verifiedCondition ? [savedItem.verifiedCondition] : []);
+    });
+    setActualWeights((current) =>
+      current[report.id] ? current : { ...current, [report.id]: nextActualWeights },
+    );
+    setVerifiedConditions((current) =>
+      current[report.id] ? current : { ...current, [report.id]: nextConditions },
+    );
+  }, [id, report, reportItems]);
+
+  const reportActualWeights = actualWeights[id] || {};
+  const reportVerifiedConditions = verifiedConditions[id] || {};
+  const itemCalculations = reportItems.map((item, index) => {
+    const itemKey = `${index}:${item.category}`;
+    const category = categories.find((candidate) => candidate.name === item.category);
+    const selectedConditions = reportVerifiedConditions[itemKey] || [];
+    const selectedPrices = category
+      ? selectedConditions.map((condition) => category.prices[condition])
+      : [];
+    const price = selectedPrices.length ? Math.min(...selectedPrices) : 0;
+    const actualWeight = reportActualWeights[itemKey] || 0;
+    return {
+      ...item,
+      itemKey,
+      actualWeight,
+      verifiedConditions: selectedConditions,
+      weighingPhoto:
+        report.verifiedItems?.[index]?.weighingPhoto || report.weighingPhotoDrafts?.[itemKey],
+      price,
+      subtotal: actualWeight * price,
+    };
+  });
+  const totalActualWeight = itemCalculations.reduce((total, item) => total + item.actualWeight, 0);
+  const totalValue = itemCalculations.reduce((total, item) => total + item.subtotal, 0);
+  const formValid =
+    itemCalculations.length > 0 &&
+    itemCalculations.every(
+      (item) =>
+        item.actualWeight > 0 &&
+        item.verifiedConditions.length > 0 &&
+        item.weighingPhoto &&
+        categories.some((category) => category.name === item.category),
+    );
+
+  const toggleVerifiedCondition = (itemKey: string, condition: WasteCondition) => {
+    if (!report || !isReady || report.status === "Selesai") return;
+    setVerifiedConditions((current) => {
+      const reportConditions = current[report.id] || {};
+      const selected = reportConditions[itemKey] || [];
+      return {
+        ...current,
+        [report.id]: {
+          ...reportConditions,
+          [itemKey]: selected.includes(condition)
+            ? selected.filter((item) => item !== condition)
+            : [...selected, condition],
+        },
+      };
+    });
   };
+
+  const setWeighingPhoto = (
+    itemKey: string,
+    photo?: { name: string; type: string; dataUrl: string },
+  ) => {
+    if (!report || report.status === "Selesai") return;
+    setReports((current) =>
+      current.map((item) => {
+        if (item.id !== report.id) return item;
+        const nextDrafts = { ...(item.weighingPhotoDrafts || {}) };
+        if (photo) nextDrafts[itemKey] = photo;
+        else delete nextDrafts[itemKey];
+        return { ...item, weighingPhotoDrafts: nextDrafts };
+      }),
+    );
+  };
+
+  const chooseWeighingPhoto = (itemKey: string, file?: File) => {
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (
+      !["image/jpeg", "image/png"].includes(file.type) ||
+      !["jpg", "jpeg", "png"].includes(extension || "")
+    ) {
+      return notify("Foto penimbangan harus berformat JPG, JPEG, atau PNG.");
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      return notify("Ukuran foto penimbangan maksimum 2 MB pada prototype.");
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setWeighingPhoto(itemKey, {
+        name: file.name,
+        type: file.type,
+        dataUrl: String(reader.result),
+      });
+    reader.onerror = () => notify("Foto tidak dapat dibaca. Silakan pilih foto lain.");
+    reader.readAsDataURL(file);
+  };
+
+  const complete = () => {
+    if (!report || report.status === "Selesai" || processingRef.current.has(report.id)) return;
+    if (!formValid)
+      return notify(
+        "Lengkapi berat aktual, kondisi terverifikasi, dan foto penimbangan setiap kategori.",
+      );
+    processingRef.current.add(report.id);
+    const verifiedItems = itemCalculations.map((item) => ({
+      category: item.category,
+      estimatedWeight: item.estimate,
+      citizenConditions: item.conditions || [],
+      actualWeight: item.actualWeight,
+      verifiedConditions: item.verifiedConditions,
+      weighingPhoto: item.weighingPhoto,
+      price: item.price,
+      subtotal: item.subtotal,
+    }));
+    const completionTimestamp = trackerTimestamp();
+    if (report.citizen === "Ayu Lestari") setBalance((balance) => balance + totalValue);
+    setReports((rs) =>
+      rs.map((item) =>
+        item.id === report.id && item.status === "Menunggu"
+          ? addTrackerStage(
+              {
+                ...item,
+                status: "Selesai",
+                actual: totalActualWeight,
+                value: totalValue,
+                verifiedItems,
+                weighingPhotoDrafts: undefined,
+              },
+              "Poin Saldo Didapatkan",
+              completionTimestamp,
+            )
+          : item,
+      ),
+    );
+    notify(`Penimbangan selesai. Saldo bertambah ${money(totalValue)}.`);
+  };
+
   return (
     <>
       <PageTitle
         title="Verifikasi & Penimbangan"
-        desc="Masukkan hasil penimbangan fisik secara manual."
+        desc="Kelola antrean laporan dan verifikasi setiap kategori hasil penimbangan fisik."
       />
-      <div className="grid gap-6 xl:grid-cols-[.75fr_1.25fr]">
-        <Card>
-          <Field label="Pilih laporan">
-            <select
-              className="input"
-              value={id}
-              onChange={(e) => {
-                setId(e.target.value);
-                const r = reports.find((x) => x.id === e.target.value);
-                setActual(r?.estimate || 0);
-              }}
-            >
-              {pending.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.id} — {r.citizen}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {report ? (
-            <div className="mt-6 space-y-4">
-              <div>
-                <p className="text-xs text-slate-400">Warga</p>
-                <p className="mt-1 font-extrabold">{report.citizen}</p>
-                <p className="text-xs text-slate-500">{report.phone}</p>
+      <div className="grid items-start gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <Card className="p-4 xl:sticky xl:top-24">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ["Total", assignedReports.length],
+              ["Menunggu", assignedReports.filter((item) => item.status === "Menunggu").length],
+              ["Selesai", assignedReports.filter((item) => item.status === "Selesai").length],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-lg font-extrabold text-slate-900">{value}</p>
+                <p className="mt-0.5 text-[10px] font-bold text-slate-500">{label}</p>
               </div>
-              <div className="h-px bg-slate-100" />
-              <InfoRow label="Kategori" value={report.category} />
-              <InfoRow label="Estimasi" value={`${report.estimate} kg`} />
-              <InfoRow label="Metode" value={report.method} />
-              <InfoRow label="Lokasi" value={report.location} />
-            </div>
-          ) : (
-            <Empty title="Tidak ada laporan menunggu" compact />
-          )}
-        </Card>
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-extrabold">Form penimbangan</h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Harga diambil otomatis dari data master.
-              </p>
-            </div>
-            <Scale className="text-green-700" />
+            ))}
           </div>
-          {report && (
+          <div className="mt-4 space-y-2">
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                className="input py-2.5 pl-9 text-sm"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari ID atau nama warga..."
+              />
+            </div>
+            <select
+              className="input py-2.5 text-sm"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as "Semua" | Report["status"])
+              }
+            >
+              <option>Semua</option>
+              <option>Menunggu</option>
+              <option>Selesai</option>
+            </select>
+          </div>
+          <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+            {visibleReports.map((item) => {
+              const categoryCount = item.categoryWeights?.length || 1;
+              const active = item.id === id;
+              const awaitingPickup =
+                item.status === "Menunggu" &&
+                item.method === "Pickup" &&
+                !pickedUpReports.includes(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setId(item.id)}
+                  className={`w-full rounded-xl border p-4 text-left transition ${
+                    active
+                      ? "border-green-500 bg-green-50 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-green-200"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-extrabold text-green-700">{item.id}</p>
+                      <p className="mt-1 text-sm font-extrabold text-slate-900">{item.citizen}</p>
+                    </div>
+                    <Badge tone={item.status === "Selesai" ? "green" : "amber"}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] text-slate-500">
+                    <span>{item.date}</span>
+                    <span>{categoryCount} kategori</span>
+                    <span className="text-right font-bold">{item.estimate} kg</span>
+                  </div>
+                  {awaitingPickup && (
+                    <p className="mt-2 text-[10px] font-bold text-amber-700">
+                      Menunggu konfirmasi penjemputan
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+            {visibleReports.length === 0 && <Empty title="Laporan tidak ditemukan" compact />}
+          </div>
+        </Card>
+
+        <Card className="p-5 sm:p-7">
+          {report ? (
             <>
-              <div className="mt-6 grid gap-5 sm:grid-cols-2">
-                <Field label="Kategori sampah">
-                  <input disabled value={report.category} className="input bg-slate-50" />
-                </Field>
-                <Field label="Berat aktual (kg)">
-                  <input
-                    type="number"
-                    min=".1"
-                    step=".1"
-                    value={actual}
-                    onChange={(e) => setActual(Number(e.target.value))}
-                    className="input"
-                  />
-                </Field>
-                <Field label="Kondisi sampah">
-                  <select
-                    className="input"
-                    value={condition}
-                    onChange={(e) => setCondition(e.target.value as "Bersih" | "Kotor")}
+              <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-start">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-extrabold text-green-700">{report.id}</p>
+                    <Badge tone={report.status === "Selesai" ? "green" : "amber"}>
+                      {report.status}
+                    </Badge>
+                  </div>
+                  <h2 className="mt-2 text-xl font-extrabold text-slate-900">{report.citizen}</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {report.phone} · {report.date} · {report.method}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-xs text-slate-400">Total estimasi</p>
+                  <p className="text-xl font-extrabold text-slate-900">{report.estimate} kg</p>
+                </div>
+              </div>
+
+              {!isReady && (
+                <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  <Truck size={18} className="shrink-0" />
+                  Laporan Pickup harus ditandai sudah dijemput pada Tugas Penjemputan sebelum
+                  ditimbang.
+                </div>
+              )}
+
+              <div className="mt-6 space-y-4">
+                {itemCalculations.map((item, index) => {
+                  const savedItem = report.verifiedItems?.[index];
+                  const savedConditions =
+                    savedItem?.verifiedConditions ||
+                    (savedItem?.verifiedCondition ? [savedItem.verifiedCondition] : []);
+                  const readOnly = report.status === "Selesai";
+                  return (
+                    <section
+                      key={`${item.category}-${index}`}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5"
+                    >
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row">
+                        <div>
+                          <p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-green-700">
+                            Kategori {index + 1}
+                          </p>
+                          <h3 className="mt-1 font-extrabold text-slate-900">{item.category}</h3>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Estimasi Warga: <strong>{item.estimate} kg</strong>
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 sm:max-w-[55%] sm:justify-end">
+                          {(item.conditions?.length ? item.conditions : []).map((condition) => (
+                            <span
+                              key={condition}
+                              className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-800"
+                            >
+                              {condition}
+                            </span>
+                          ))}
+                          {!item.conditions?.length && (
+                            <span className="text-[10px] font-semibold text-slate-400">
+                              Kondisi awal tidak tersedia
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                        <Field label="Berat aktual (kg)">
+                          <input
+                            type="number"
+                            min=".1"
+                            step=".1"
+                            disabled={readOnly || !isReady}
+                            value={(savedItem?.actualWeight ?? item.actualWeight) || ""}
+                            onChange={(event) =>
+                              setActualWeights((current) => ({
+                                ...current,
+                                [report.id]: {
+                                  ...(current[report.id] || {}),
+                                  [item.itemKey]: Number(event.target.value),
+                                },
+                              }))
+                            }
+                            className="input disabled:bg-slate-100"
+                          />
+                        </Field>
+                        <div>
+                          <p className="mb-2 text-sm font-semibold text-slate-700">
+                            Kondisi terverifikasi
+                          </p>
+                          {readOnly ? (
+                            <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
+                              {savedConditions.length ? (
+                                savedConditions.map((condition) => (
+                                  <span
+                                    key={condition}
+                                    className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700"
+                                  >
+                                    {condition}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-sm font-bold text-slate-500">
+                                  Tidak tersedia
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                              {wasteConditions.map((condition) => {
+                                const selected = item.verifiedConditions.includes(condition);
+                                return (
+                                  <label
+                                    key={condition}
+                                    className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-bold leading-4 transition ${
+                                      !isReady ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+                                    } ${
+                                      selected
+                                        ? "border-green-600 bg-green-50 text-green-900 ring-1 ring-green-600"
+                                        : "border-slate-200 bg-white text-slate-600 hover:border-green-300 hover:bg-green-50/50"
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      disabled={!isReady}
+                                      checked={selected}
+                                      onChange={() =>
+                                        toggleVerifiedCondition(item.itemKey, condition)
+                                      }
+                                      className="h-4 w-4 shrink-0 accent-green-700"
+                                    />
+                                    <span>{condition}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {!readOnly && item.verifiedConditions.length > 1 && (
+                            <p className="mt-2 text-[10px] leading-4 text-slate-500">
+                              Harga terendah dari kondisi yang dipilih digunakan untuk perhitungan.
+                            </p>
+                          )}
+                        </div>
+                        <Field label="Harga per kilogram">
+                          <input
+                            disabled
+                            className="input bg-slate-100"
+                            value={money(savedItem?.price ?? item.price)}
+                          />
+                        </Field>
+                        <Field label="Subtotal">
+                          <input
+                            disabled
+                            className="input bg-green-50 font-extrabold text-green-800"
+                            value={money(savedItem?.subtotal ?? item.subtotal)}
+                          />
+                        </Field>
+                      </div>
+                      <div className="mt-5 border-t border-slate-200 pt-5">
+                        <p className="text-sm font-semibold text-slate-700">
+                          Foto Bukti Penimbangan
+                        </p>
+                        {item.weighingPhoto ? (
+                          <div className="mt-3 rounded-xl border border-green-200 bg-white p-3">
+                            <img
+                              src={item.weighingPhoto.dataUrl}
+                              alt={`Bukti penimbangan ${item.category}`}
+                              className="max-h-56 w-full rounded-lg bg-slate-50 object-contain"
+                            />
+                            <div className="mt-3 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                              <p className="min-w-0 truncate text-xs font-bold text-slate-700">
+                                {item.weighingPhoto.name}
+                              </p>
+                              {!readOnly && (
+                                <div className="flex gap-2">
+                                  <label className="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 active:scale-[.97]">
+                                    <UploadCloud size={14} /> Ganti Foto
+                                    <input
+                                      type="file"
+                                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                                      className="sr-only"
+                                      disabled={!isReady}
+                                      onChange={(event) =>
+                                        chooseWeighingPhoto(item.itemKey, event.target.files?.[0])
+                                      }
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    disabled={!isReady}
+                                    onClick={() => setWeighingPhoto(item.itemKey)}
+                                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 active:scale-[.97] disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} /> Hapus
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <label
+                              className={`flex min-h-24 flex-col items-center justify-center rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-5 text-center transition ${
+                                isReady
+                                  ? "cursor-pointer hover:border-green-400"
+                                  : "cursor-not-allowed opacity-50"
+                              }`}
+                            >
+                              <UploadCloud className="text-green-700" size={23} />
+                              <span className="mt-2 text-xs font-extrabold text-green-800">
+                                Upload Foto Penimbangan
+                              </span>
+                              <span className="mt-1 text-[10px] text-slate-500">
+                                JPG, JPEG, atau PNG · maks. 2 MB
+                              </span>
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                                className="sr-only"
+                                disabled={!isReady}
+                                onChange={(event) =>
+                                  chooseWeighingPhoto(item.itemKey, event.target.files?.[0])
+                                }
+                              />
+                            </label>
+                            {isReady && report.status === "Menunggu" && (
+                              <p className="mt-2 text-xs font-semibold text-red-600">
+                                Foto bukti penimbangan wajib diunggah.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-green-700">Total berat aktual</p>
+                    <p className="mt-1 text-xl font-extrabold text-green-950">
+                      {report.actual ?? totalActualWeight} kg
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-green-700">Total nilai setoran</p>
+                    <p className="mt-1 text-xl font-extrabold text-green-950">
+                      {money(report.value ?? totalValue)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-green-700">Saldo ditambahkan</p>
+                    <p className="mt-1 text-xl font-extrabold text-green-950">
+                      {money(report.value ?? totalValue)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {report.status === "Menunggu" && isReady && !formValid && (
+                <div className="mt-5 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold leading-5 text-amber-800">
+                  <XCircle size={17} className="mt-0.5 shrink-0" />
+                  Lengkapi berat aktual, minimal satu kondisi terverifikasi, dan foto bukti pada
+                  setiap kategori sebelum menyelesaikan laporan.
+                </div>
+              )}
+
+              {report.status === "Menunggu" ? (
+                <>
+                  <Button
+                    onClick={complete}
+                    disabled={!isReady || !formValid}
+                    className="mt-6 w-full py-3"
                   >
-                    <option>Bersih</option>
-                    <option>Kotor</option>
-                  </select>
-                </Field>
-                <Field label="Harga per kilogram">
-                  <input disabled className="input bg-slate-50" value={money(price)} />
-                </Field>
-              </div>
-              <div className="mt-6 rounded-2xl bg-green-50 p-5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-green-800">
-                    Subtotal {actual} kg × {money(price)}
-                  </span>
-                  <span className="font-extrabold text-green-900">{money(subtotal)}</span>
+                    <CheckCircle2 size={18} /> Simpan & Selesaikan Laporan
+                  </Button>
+                  <p className="mt-3 text-center text-xs text-slate-400">
+                    Satu laporan diselesaikan sekaligus. Saldo hanya ditambahkan satu kali.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-slate-100 p-4 text-sm font-bold text-slate-600">
+                  <CheckCircle2 size={18} className="text-green-700" />
+                  Laporan selesai dan bersifat hanya-baca
                 </div>
-                <div className="my-4 h-px bg-green-200" />
-                <div className="flex justify-between">
-                  <span className="font-bold text-green-900">Saldo yang ditambahkan</span>
-                  <span className="text-xl font-extrabold text-green-800">{money(subtotal)}</span>
-                </div>
-              </div>
-              <Button onClick={complete} className="mt-6 w-full py-3">
-                <CheckCircle2 size={18} /> Simpan & selesaikan laporan
-              </Button>
-              <p className="mt-3 text-center text-xs text-slate-400">
-                Saldo diperbarui otomatis. Petugas tidak dapat mengubah saldo secara langsung.
-              </p>
+              )}
             </>
+          ) : (
+            <Empty title="Pilih laporan dari antrean" />
           )}
         </Card>
       </div>
@@ -3630,81 +6185,328 @@ function VerificationPage({ reports, setReports, setBalance, notify, categories 
   );
 }
 
-function RequestsPage({ notify, setBalance }: RouterProps) {
-  const [done, setDone] = useState<string[]>([]);
-  const requests = [
-    {
-      id: "WD-018",
-      name: "Ayu Lestari",
-      type: "Penarikan manual",
-      amount: 75000,
-      info: "Ambil tunai di Bank Sampah Sejahtera",
-    },
-    {
-      id: "WD-017",
-      name: "Siti Rahma",
-      type: "Potong iuran bulanan",
-      amount: 25000,
-      info: "Iuran sampah bulan Maret",
-    },
-  ];
+function AdminWithdrawalPage({
+  notify,
+  setBalance,
+  withdrawalRequests,
+  setWithdrawalRequests,
+}: RouterProps) {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"Semua" | WithdrawalRequest["status"]>("Semua");
+  const [processingRequest, setProcessingRequest] = useState<WithdrawalRequest | null>(null);
+  const [detailRequest, setDetailRequest] = useState<WithdrawalRequest | null>(null);
+  const [previewRequest, setPreviewRequest] = useState<WithdrawalRequest | null>(null);
+  const [proofDraft, setProofDraft] = useState<WithdrawalRequest["proof"]>();
+  const [proofError, setProofError] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const visibleRequests = withdrawalRequests.filter(
+    (request) =>
+      (statusFilter === "Semua" || request.status === statusFilter) &&
+      (request.id.toLowerCase().includes(search.toLowerCase()) ||
+        request.citizenName.toLowerCase().includes(search.toLowerCase())),
+  );
+  const openProcessModal = (request: WithdrawalRequest) => {
+    if (request.status === "Selesai") return;
+    setProcessingRequest(request);
+    setProofDraft(undefined);
+    setProofError("");
+  };
+  const chooseProof = (file?: File) => {
+    setProofError("");
+    if (!file) return setProofDraft(undefined);
+    const allowedTypes = ["image/jpeg", "image/png", "application/pdf"];
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (
+      !allowedTypes.includes(file.type) ||
+      !["jpg", "jpeg", "png", "pdf"].includes(extension || "")
+    ) {
+      setProofDraft(undefined);
+      return setProofError("Gunakan file JPG, JPEG, PNG, atau PDF.");
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setProofDraft(undefined);
+      return setProofError("Ukuran file maksimum untuk prototype adalah 2 MB.");
+    }
+    const reader = new FileReader();
+    reader.onload = () =>
+      setProofDraft({
+        name: file.name,
+        type: file.type,
+        dataUrl: String(reader.result),
+      });
+    reader.onerror = () => setProofError("File tidak dapat dibaca. Silakan pilih file lain.");
+    reader.readAsDataURL(file);
+  };
+  const confirmProcess = () => {
+    if (!processingRequest || processingRequest.status === "Selesai") return;
+    if (!proofDraft) return setProofError("Bukti transaksi wajib diunggah.");
+    const currentRequest = withdrawalRequests.find(
+      (request) => request.id === processingRequest.id,
+    );
+    if (!currentRequest || currentRequest.status === "Selesai") {
+      setProcessingRequest(null);
+      return notify("Permintaan ini sudah selesai diproses.");
+    }
+    setProcessing(true);
+    window.setTimeout(() => {
+      const processedDate = new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(new Date());
+      setWithdrawalRequests((current) =>
+        current.map((request) =>
+          request.id === processingRequest.id && request.status === "Menunggu"
+            ? {
+                ...request,
+                status: "Selesai",
+                processedDate,
+                processedBy: "Nadia Putri",
+                proof: proofDraft,
+              }
+            : request,
+        ),
+      );
+      if (processingRequest.citizenId === "ayu.lestari") {
+        setBalance((current) => Math.max(0, current - processingRequest.amount));
+      }
+      setProcessing(false);
+      setProcessingRequest(null);
+      setProofDraft(undefined);
+      notify("Permintaan berhasil diproses dan bukti transaksi tersimpan.");
+    }, 650);
+  };
   return (
     <>
-      <PageTitle title="Permintaan Penarikan" desc="Proses permintaan warga secara manual." />
+      <PageTitle
+        title="Permintaan Penarikan"
+        desc="Kelola dan proses permintaan penarikan saldo warga secara manual."
+      />
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Total Permintaan"
+          value={String(withdrawalRequests.length)}
+          detail="Seluruh permintaan"
+          icon={HandCoins}
+        />
+        <StatCard
+          label="Menunggu"
+          value={String(
+            withdrawalRequests.filter((request) => request.status === "Menunggu").length,
+          )}
+          detail="Perlu diproses"
+          icon={Clock3}
+          tone="amber"
+        />
+        <StatCard
+          label="Selesai"
+          value={String(
+            withdrawalRequests.filter((request) => request.status === "Selesai").length,
+          )}
+          detail="Telah diproses"
+          icon={CheckCircle2}
+          tone="blue"
+        />
+      </div>
       <Card>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+          <div className="relative flex-1">
+            <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="input pl-10"
+              placeholder="Cari ID atau nama warga..."
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as "Semua" | WithdrawalRequest["status"])
+            }
+            className="input sm:w-48"
+          >
+            <option>Semua</option>
+            <option>Menunggu</option>
+            <option>Selesai</option>
+          </select>
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Warga</th>
-                <th>Jenis</th>
+                <th>ID Permintaan</th>
+                <th>Nama Warga</th>
+                <th>Jenis Permintaan</th>
                 <th>Nominal</th>
                 <th>Keterangan</th>
+                <th>Tanggal Pengajuan</th>
                 <th>Status</th>
-                <th />
+                <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {requests.map((r) => (
-                <tr key={r.id}>
-                  <td className="font-bold">{r.id}</td>
-                  <td>{r.name}</td>
-                  <td>{r.type}</td>
-                  <td className="font-bold">{money(r.amount)}</td>
-                  <td>{r.info}</td>
+              {visibleRequests.map((request) => (
+                <tr key={request.id}>
+                  <td className="font-bold text-green-700">{request.id}</td>
+                  <td className="font-semibold">{request.citizenName}</td>
+                  <td>{request.type}</td>
+                  <td className="font-bold">{money(request.amount)}</td>
+                  <td className="max-w-56 whitespace-normal">{request.description}</td>
+                  <td>{request.submittedDate}</td>
                   <td>
-                    <Badge tone={done.includes(r.id) ? "green" : "amber"}>
-                      {done.includes(r.id) ? "Selesai" : "Menunggu"}
+                    <Badge tone={request.status === "Selesai" ? "green" : "amber"}>
+                      {request.status}
                     </Badge>
                   </td>
                   <td>
-                    <Button
-                      disabled={done.includes(r.id)}
-                      onClick={() => {
-                        setDone((d) => [...d, r.id]);
-                        if (r.name === "Ayu Lestari") {
-                          setBalance((current) => Math.max(0, current - r.amount));
-                        }
-                        notify("Permintaan ditandai selesai diproses.");
-                      }}
-                      className="min-h-8 px-3 py-1 text-xs"
-                    >
-                      Proses
-                    </Button>
+                    <div className="flex min-w-max gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => setDetailRequest(request)}
+                        className="min-h-8 px-3 py-1 text-xs"
+                      >
+                        Detail
+                      </Button>
+                      {request.status === "Menunggu" ? (
+                        <Button
+                          onClick={() => openProcessModal(request)}
+                          className="min-h-8 px-3 py-1 text-xs"
+                        >
+                          Proses
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={() => setPreviewRequest(request)}
+                          className="min-h-8 px-3 py-1 text-xs"
+                        >
+                          Lihat Bukti
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {visibleRequests.length === 0 && <Empty title="Permintaan tidak ditemukan" compact />}
         </div>
       </Card>
+      {detailRequest && (
+        <Modal title="Detail Permintaan" onClose={() => setDetailRequest(null)}>
+          <div className="space-y-3 rounded-xl bg-slate-50 p-4">
+            <InfoRow label="ID Permintaan" value={detailRequest.id} />
+            <InfoRow label="Nama Warga" value={detailRequest.citizenName} />
+            <InfoRow label="Jenis" value={detailRequest.type} />
+            <InfoRow label="Nominal" value={money(detailRequest.amount)} />
+            <InfoRow label="Tanggal" value={detailRequest.submittedDate} />
+            <InfoRow label="Status" value={detailRequest.status} />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-600">{detailRequest.description}</p>
+          <Button
+            variant="secondary"
+            onClick={() => setDetailRequest(null)}
+            className="mt-6 w-full"
+          >
+            Tutup
+          </Button>
+        </Modal>
+      )}
+      {processingRequest && (
+        <Modal
+          title="Proses Permintaan Penarikan"
+          onClose={() => !processing && setProcessingRequest(null)}
+        >
+          <div className="space-y-3 rounded-xl bg-slate-50 p-4">
+            <InfoRow label="ID Permintaan" value={processingRequest.id} />
+            <InfoRow label="Nama Warga" value={processingRequest.citizenName} />
+            <InfoRow label="Jenis" value={processingRequest.type} />
+            <InfoRow label="Nominal" value={money(processingRequest.amount)} />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-slate-600">{processingRequest.description}</p>
+          <div className="mt-5">
+            <p className="mb-2 text-sm font-bold text-slate-700">
+              {processingRequest.type === "Potong iuran bulanan"
+                ? "Bukti Pemotongan Iuran"
+                : "Upload Bukti Transfer"}
+            </p>
+            <label className="flex cursor-pointer flex-col items-center rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 px-5 py-6 text-center transition hover:border-green-400">
+              <UploadCloud className="text-green-700" size={25} />
+              <span className="mt-2 text-sm font-bold text-green-800">Pilih gambar atau PDF</span>
+              <span className="mt-1 text-xs text-slate-500">JPG, JPEG, PNG, PDF · maks. 2 MB</span>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                className="sr-only"
+                onChange={(event) => chooseProof(event.target.files?.[0])}
+              />
+            </label>
+            {proofDraft && (
+              <div className="mt-3 rounded-xl border border-green-200 bg-white p-3">
+                <p className="truncate text-xs font-bold text-slate-700">{proofDraft.name}</p>
+                {proofDraft.type.startsWith("image/") && (
+                  <img
+                    src={proofDraft.dataUrl}
+                    alt="Pratinjau bukti"
+                    className="mt-3 max-h-48 w-full rounded-lg object-contain"
+                  />
+                )}
+              </div>
+            )}
+            {proofError && <p className="mt-2 text-xs font-semibold text-red-600">{proofError}</p>}
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="secondary"
+              disabled={processing}
+              onClick={() => setProcessingRequest(null)}
+            >
+              Batal
+            </Button>
+            <Button disabled={processing} onClick={confirmProcess}>
+              {processing ? (
+                <LoaderCircle className="animate-spin" size={16} />
+              ) : (
+                <Check size={16} />
+              )}
+              {processing ? "Menyimpan..." : "Konfirmasi Proses"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {previewRequest?.proof && (
+        <Modal title="Bukti Transaksi" onClose={() => setPreviewRequest(null)} wide>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            {previewRequest.proof.type === "application/pdf" ? (
+              <iframe
+                title={`Bukti ${previewRequest.id}`}
+                src={previewRequest.proof.dataUrl}
+                className="h-[65vh] w-full border-0"
+              />
+            ) : (
+              <img
+                src={previewRequest.proof.dataUrl}
+                alt={`Bukti transaksi ${previewRequest.id}`}
+                className="max-h-[65vh] w-full object-contain"
+              />
+            )}
+          </div>
+          <a
+            href={previewRequest.proof.dataUrl}
+            download={previewRequest.proof.name}
+            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-white"
+          >
+            <Download size={16} /> Unduh Bukti
+          </a>
+        </Modal>
+      )}
     </>
   );
 }
 
-function MapsPage() {
-  const [selected, setSelected] = useState(0);
+function MapsPage({ role, go }: { role: Role; go: (page: string) => void }) {
+  const encodedGrahaAddress = encodeURIComponent(grahaPenaLocation.address);
   return (
     <>
       <PageTitle
@@ -3713,45 +6515,94 @@ function MapsPage() {
       />
       <div className="grid gap-6 xl:grid-cols-[1.5fr_.75fr]">
         <Card className="p-3">
-          <div className="map-full">
-            {banks.map((b, i) => (
-              <button
-                key={b.name}
-                onClick={() => setSelected(i)}
-                style={{ left: `${b.x}%`, top: `${b.y}%` }}
-                className={`map-pin absolute -translate-x-1/2 -translate-y-1/2 ${selected === i ? "scale-125" : ""}`}
-              >
-                <MapPin size={20} />
-              </button>
-            ))}
-            <div className="absolute bottom-4 left-4 rounded-xl bg-white p-4 shadow-lg">
-              <p className="text-xs font-bold text-green-700">Lokasi dipilih</p>
-              <p className="mt-1 text-sm font-extrabold">{banks[selected].name}</p>
-              <p className="mt-1 max-w-xs text-xs text-slate-500">{banks[selected].address}</p>
+          <div className="map-full bg-slate-100">
+            <iframe
+              title="Peta Bank Sampah Graha Pena Palembang"
+              src={`https://www.google.com/maps?q=${encodedGrahaAddress}&z=16&output=embed`}
+              className="h-full min-h-[580px] w-full border-0"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+            <div className="absolute bottom-4 left-4 right-4 max-w-sm rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur">
+              <p className="text-xs font-bold text-green-700">Mitra Utama SIMPANWASTE</p>
+              <p className="mt-1 text-sm font-extrabold">{grahaPenaLocation.name}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{grahaPenaLocation.address}</p>
             </div>
           </div>
         </Card>
         <div className="space-y-3">
-          {banks.map((b, i) => (
-            <button
-              key={b.name}
-              onClick={() => setSelected(i)}
-              className={`w-full rounded-2xl border bg-white p-5 text-left transition ${selected === i ? "border-green-600 ring-2 ring-green-100" : "border-slate-200 hover:border-green-200"}`}
-            >
-              <div className="flex gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-50 text-green-700">
-                  <Building2 size={19} />
+          <div className="w-full rounded-2xl border-2 border-green-600 bg-green-50/70 p-5 text-left shadow-[0_10px_30px_rgba(22,101,52,.1)]">
+            <div className="flex gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-700 text-white">
+                <Recycle size={19} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-extrabold">{grahaPenaLocation.name}</p>
+                  <Badge tone="green">Mitra SIMPANWASTE</Badge>
                 </div>
-                <div>
-                  <p className="text-sm font-extrabold">{b.name}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{b.address}</p>
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-green-700">
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {grahaPenaLocation.address}. {grahaPenaLocation.landmark}
+                </p>
+                <div className="mt-3 space-y-2 text-xs font-semibold text-green-700">
+                  <p className="flex items-center gap-1.5">
                     <Clock3 size={14} />
-                    {b.hours}
+                    Senin–Jumat: {grahaPenaLocation.weekdaySchedule}
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <CalendarDays size={14} />
+                    Sabtu: {grahaPenaLocation.saturdaySchedule}
                   </p>
                 </div>
               </div>
-            </button>
+            </div>
+            <div className="mt-5 rounded-xl border border-green-200 bg-white p-4">
+              <p className="text-xs font-bold leading-5 text-slate-700">
+                Bank Sampah Graha Pena adalah lokasi penyetoran yang terintegrasi dengan
+                SIMPANWASTE.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                {role === "warga" && (
+                  <Button onClick={() => go("buat-laporan")} className="flex-1">
+                    <Recycle size={16} /> Setor Sekarang
+                  </Button>
+                )}
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodedGrahaAddress}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 py-2 text-sm font-bold text-green-700 transition hover:bg-green-50"
+                >
+                  <MapPin size={16} /> Lihat Selengkapnya
+                </a>
+              </div>
+            </div>
+          </div>
+          {banks.map((bank) => (
+            <div
+              key={bank.name}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-5 text-left opacity-80"
+            >
+              <div className="flex gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500">
+                  <Building2 size={19} />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-extrabold">{bank.name}</p>
+                    <Badge tone="slate">Lokasi referensi</Badge>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{bank.address}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                    <Clock3 size={14} />
+                    {bank.hours}
+                  </p>
+                  <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-400">
+                    Ditampilkan sebagai informasi dan belum terintegrasi dengan layanan SIMPANWASTE.
+                  </p>
+                </div>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -4187,19 +7038,66 @@ function ProfilePage({ role, notify, go, citizenProfile, setCitizenProfile }: Ro
 }
 
 function AccountsPage({ notify }: { notify: (t: string) => void }) {
-  const [role, setRole] = useState("Semua");
-  const [modal, setModal] = useState(false);
-  const [users, setUsers] = useState([
+  const defaultUsers = [
     { name: "Ayu Lestari", username: "ayu.lestari", phone: "0812 7788 2341", role: "Warga" },
     { name: "Budi Santoso", username: "budi.s", phone: "0813 6900 1122", role: "Warga" },
     { name: "Rizky Pratama", username: "rizky.p", phone: "0813 7781 2240", role: "Petugas" },
     { name: "Nadia Putri", username: "admin.simpan", phone: "0812 9900 8822", role: "Admin" },
-  ]);
-  const remove = (u: string) => {
-    if (confirm("Hapus akun ini? Tindakan tidak dapat dibatalkan.")) {
-      setUsers((x) => x.filter((a) => a.username !== u));
-      notify("Akun berhasil dihapus.");
-    }
+  ];
+  const [role, setRole] = useState("Semua");
+  const [modal, setModal] = useState(false);
+  const [users, setUsers] = useState(() => readStoredState("simpanwaste-users", defaultUsers));
+  const [editingUser, setEditingUser] = useState<{
+    originalUsername: string;
+    data: { name: string; username: string; phone: string; role: string };
+  } | null>(null);
+  const [deletingUser, setDeletingUser] = useState<(typeof users)[number] | null>(null);
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    window.localStorage.setItem("simpanwaste-users", JSON.stringify(users));
+  }, [users]);
+  const saveUserChanges = (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    const data = {
+      ...editingUser.data,
+      name: editingUser.data.name.trim(),
+      username: editingUser.data.username.trim().toLowerCase(),
+      phone: editingUser.data.phone.trim(),
+    };
+    const errors: Record<string, string> = {};
+    if (!data.name) errors.name = "Nama lengkap wajib diisi.";
+    if (!data.username) errors.username = "Username wajib diisi.";
+    else if (
+      users.some(
+        (user) =>
+          user.username.toLowerCase() === data.username &&
+          user.username !== editingUser.originalUsername,
+      )
+    )
+      errors.username = "Username sudah digunakan.";
+    if (!data.phone) errors.phone = "Nomor telepon wajib diisi.";
+    if (!data.role) errors.role = "Role wajib dipilih.";
+    setEditErrors(errors);
+    if (Object.keys(errors).length) return;
+    setUsers((current) =>
+      current.map((user) => (user.username === editingUser.originalUsername ? data : user)),
+    );
+    setEditingUser(null);
+    setEditErrors({});
+    notify("Perubahan akun berhasil disimpan.");
+  };
+  const updateEditingUser = (field: "name" | "username" | "phone" | "role", value: string) => {
+    setEditingUser((current) =>
+      current ? { ...current, data: { ...current.data, [field]: value } } : current,
+    );
+    setEditErrors((current) => ({ ...current, [field]: "" }));
+  };
+  const confirmDeleteUser = () => {
+    if (!deletingUser) return;
+    setUsers((current) => current.filter((user) => user.username !== deletingUser.username));
+    setDeletingUser(null);
+    notify("Akun berhasil dihapus.");
   };
   return (
     <>
@@ -4251,17 +7149,24 @@ function AccountsPage({ notify }: { notify: (t: string) => void }) {
                       </Badge>
                     </td>
                     <td>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" className="min-h-8 px-2">
-                          <Pencil size={15} />
-                        </Button>
-                        <Button
-                          onClick={() => remove(u.username)}
-                          variant="danger"
-                          className="min-h-8 px-2"
+                      <div className="flex min-w-max items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUser({ originalUsername: u.username, data: { ...u } });
+                            setEditErrors({});
+                          }}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 active:scale-[.97]"
                         >
-                          <Trash2 size={15} />
-                        </Button>
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingUser(u)}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 active:scale-[.97]"
+                        >
+                          <Trash2 size={14} /> Hapus
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -4311,6 +7216,88 @@ function AccountsPage({ notify }: { notify: (t: string) => void }) {
           </form>
         </Modal>
       )}
+      {editingUser && (
+        <Modal title="Edit Akun" onClose={() => setEditingUser(null)}>
+          <form onSubmit={saveUserChanges} className="space-y-4">
+            <Field label="Nama lengkap">
+              <input
+                value={editingUser.data.name}
+                onChange={(event) => updateEditingUser("name", event.target.value)}
+                className={`input ${editErrors.name ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              />
+              {editErrors.name && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">{editErrors.name}</p>
+              )}
+            </Field>
+            <Field label="Username">
+              <input
+                value={editingUser.data.username}
+                onChange={(event) => updateEditingUser("username", event.target.value)}
+                className={`input ${editErrors.username ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              />
+              {editErrors.username && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">{editErrors.username}</p>
+              )}
+            </Field>
+            <Field label="Nomor telepon">
+              <input
+                value={editingUser.data.phone}
+                onChange={(event) => updateEditingUser("phone", event.target.value)}
+                className={`input ${editErrors.phone ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              />
+              {editErrors.phone && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">{editErrors.phone}</p>
+              )}
+            </Field>
+            <Field label="Role">
+              <select
+                value={editingUser.data.role}
+                onChange={(event) => updateEditingUser("role", event.target.value)}
+                className="input"
+              >
+                <option>Warga</option>
+                <option>Petugas</option>
+                <option>Admin</option>
+              </select>
+            </Field>
+            <p className="text-xs leading-5 text-slate-400">
+              Password akun tidak ditampilkan dan tidak diubah melalui formulir ini.
+            </p>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setEditingUser(null)}>
+                Batal
+              </Button>
+              <Button type="submit">
+                <Check size={16} /> Simpan Perubahan
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {deletingUser && (
+        <Modal title="Hapus Akun?" onClose={() => setDeletingUser(null)}>
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <Trash2 className="mt-0.5 shrink-0 text-red-700" size={20} />
+              <div>
+                <p className="text-sm leading-6 text-red-800">
+                  Apakah Anda yakin ingin menghapus akun <strong>{deletingUser.name}</strong>?
+                  Tindakan ini tidak dapat dibatalkan.
+                </p>
+                <p className="mt-2 text-xs font-bold text-red-700">@{deletingUser.username}</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setDeletingUser(null)}>
+              Batal
+            </Button>
+            <Button variant="danger" onClick={confirmDeleteUser}>
+              <Trash2 size={16} /> Ya, Hapus
+            </Button>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
@@ -4318,6 +7305,11 @@ function AccountsPage({ notify }: { notify: (t: string) => void }) {
 function MasterPage({ notify, categories, setCategories, minPickup, setMinPickup }: RouterProps) {
   const [tab, setTab] = useState("Kategori Sampah");
   const [minimum, setMinimum] = useState(minPickup);
+  const [editingCategory, setEditingCategory] = useState<{
+    index: number;
+    data: (typeof categoriesSeed)[number];
+  } | null>(null);
+  const [deletingCategoryIndex, setDeletingCategoryIndex] = useState<number | null>(null);
   return (
     <>
       <PageTitle
@@ -4346,7 +7338,16 @@ function MasterPage({ notify, categories, setCategories, minPickup, setMinPickup
               onClick={() => {
                 setCategories((c) => [
                   ...c,
-                  { name: "Kategori Baru", desc: "Deskripsi kategori", clean: 1000, dirty: 500 },
+                  {
+                    name: "Kategori Baru",
+                    desc: "Deskripsi kategori",
+                    prices: {
+                      "Sudah dipilah": 0,
+                      "Sudah dibersihkan": 0,
+                      "Tidak mudah didaur ulang": 0,
+                      "Belum dipilah dan dibersihkan": 0,
+                    },
+                  },
                 ]);
                 notify("Kategori baru ditambahkan dan aktif untuk laporan berikutnya.");
               }}
@@ -4360,8 +7361,9 @@ function MasterPage({ notify, categories, setCategories, minPickup, setMinPickup
                 <tr>
                   <th>Kategori</th>
                   <th>Deskripsi</th>
-                  <th>Harga bersih/kg</th>
-                  <th>Harga kotor/kg</th>
+                  {wasteConditions.map((condition) => (
+                    <th key={condition}>{condition}/kg</th>
+                  ))}
                   <th>Aksi</th>
                 </tr>
               </thead>
@@ -4370,23 +7372,25 @@ function MasterPage({ notify, categories, setCategories, minPickup, setMinPickup
                   <tr key={`${c.name}-${i}`}>
                     <td className="font-bold">{c.name}</td>
                     <td>{c.desc}</td>
-                    <td>{money(c.clean)}</td>
-                    <td>{money(c.dirty)}</td>
+                    {wasteConditions.map((condition) => (
+                      <td key={condition}>{money(c.prices[condition])}</td>
+                    ))}
                     <td>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" className="min-h-8 px-2">
-                          <Pencil size={15} />
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setCategories((x) => x.filter((_, x) => x !== i));
-                            notify("Kategori dihapus dari laporan berikutnya.");
-                          }}
-                          variant="danger"
-                          className="min-h-8 px-2"
+                      <div className="flex min-w-max items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory({ index: i, data: { ...c } })}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 active:scale-[.97]"
                         >
-                          <Trash2 size={15} />
-                        </Button>
+                          <Pencil size={14} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingCategoryIndex(i)}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 active:scale-[.97]"
+                        >
+                          <Trash2 size={14} /> Hapus
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -4455,22 +7459,222 @@ function MasterPage({ notify, categories, setCategories, minPickup, setMinPickup
           </div>
         </Card>
       )}
+      {editingCategory && (
+        <Modal title="Edit Kategori Sampah" onClose={() => setEditingCategory(null)}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const updatedCategory = editingCategory.data;
+              if (
+                !updatedCategory.name.trim() ||
+                !updatedCategory.desc.trim() ||
+                wasteConditions.some((condition) => updatedCategory.prices[condition] < 0)
+              ) {
+                notify("Lengkapi data kategori dengan nilai harga yang valid.");
+                return;
+              }
+              setCategories((current) =>
+                current.map((category, index) =>
+                  index === editingCategory.index
+                    ? {
+                        ...updatedCategory,
+                        name: updatedCategory.name.trim(),
+                        desc: updatedCategory.desc.trim(),
+                      }
+                    : category,
+                ),
+              );
+              setEditingCategory(null);
+              notify("Kategori sampah berhasil diperbarui.");
+            }}
+            className="space-y-4"
+          >
+            <Field label="Nama kategori">
+              <input
+                required
+                value={editingCategory.data.name}
+                onChange={(event) =>
+                  setEditingCategory((current) =>
+                    current
+                      ? {
+                          ...current,
+                          data: { ...current.data, name: event.target.value },
+                        }
+                      : current,
+                  )
+                }
+                className="input"
+              />
+            </Field>
+            <Field label="Deskripsi">
+              <textarea
+                required
+                value={editingCategory.data.desc}
+                onChange={(event) =>
+                  setEditingCategory((current) =>
+                    current
+                      ? {
+                          ...current,
+                          data: { ...current.data, desc: event.target.value },
+                        }
+                      : current,
+                  )
+                }
+                className="input min-h-24 resize-none"
+              />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {wasteConditions.map((condition) => (
+                <Field key={condition} label={`Harga ${condition.toLowerCase()} per kg`}>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    value={editingCategory.data.prices[condition]}
+                    onChange={(event) =>
+                      setEditingCategory((current) =>
+                        current
+                          ? {
+                              ...current,
+                              data: {
+                                ...current.data,
+                                prices: {
+                                  ...current.data.prices,
+                                  [condition]: Number(event.target.value),
+                                },
+                              },
+                            }
+                          : current,
+                      )
+                    }
+                    className="input"
+                  />
+                </Field>
+              ))}
+            </div>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setEditingCategory(null)}>
+                Batal
+              </Button>
+              <Button type="submit">
+                <Check size={16} /> Simpan Perubahan
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {deletingCategoryIndex !== null && categories[deletingCategoryIndex] && (
+        <Modal title="Hapus Kategori Sampah" onClose={() => setDeletingCategoryIndex(null)}>
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <Trash2 className="mt-0.5 shrink-0 text-red-700" size={20} />
+              <div>
+                <p className="text-sm font-extrabold text-red-900">
+                  {categories[deletingCategoryIndex].name}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-red-700">
+                  Kategori ini akan dihapus dari katalog dan tidak tersedia untuk laporan
+                  berikutnya.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setDeletingCategoryIndex(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                const categoryName = categories[deletingCategoryIndex].name;
+                setCategories((current) =>
+                  current.filter((_, index) => index !== deletingCategoryIndex),
+                );
+                setDeletingCategoryIndex(null);
+                notify(`Kategori ${categoryName} berhasil dihapus.`);
+              }}
+            >
+              <Trash2 size={16} /> Hapus
+            </Button>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }
 
-function DistributionPage({ notify }: { notify: (t: string) => void }) {
+function DistributionPage({
+  notify,
+  categories,
+}: {
+  notify: (t: string) => void;
+  categories: typeof categoriesSeed;
+}) {
   const [modal, setModal] = useState(false);
-  const rows = [
-    {
-      date: "17 Mar 2025",
-      partner: "PT Sriwijaya Daur Ulang",
-      category: "Botol Plastik PET",
-      weight: 820,
-    },
-    { date: "13 Mar 2025", partner: "Mitra Kertas Musi", category: "Kardus", weight: 640 },
-    { date: "8 Mar 2025", partner: "CV Logam Jaya", category: "Kaleng Aluminium", weight: 410 },
-  ];
+  const partners = ["PT Sriwijaya Daur Ulang", "Mitra Kertas Musi", "CV Logam Jaya"];
+  const [rows, setRows] = useState(() =>
+    readStoredState("simpanwaste-distributions", [
+      {
+        id: "DST-001",
+        date: "2025-03-17",
+        partner: "PT Sriwijaya Daur Ulang",
+        category: "Botol Plastik PET",
+        weight: 820,
+      },
+      {
+        id: "DST-002",
+        date: "2025-03-13",
+        partner: "Mitra Kertas Musi",
+        category: "Kardus",
+        weight: 640,
+      },
+      {
+        id: "DST-003",
+        date: "2025-03-08",
+        partner: "CV Logam Jaya",
+        category: "Kaleng Aluminium",
+        weight: 410,
+      },
+    ]),
+  );
+  const [editingRow, setEditingRow] = useState<(typeof rows)[number] | null>(null);
+  const [deletingRow, setDeletingRow] = useState<(typeof rows)[number] | null>(null);
+  const [distributionErrors, setDistributionErrors] = useState<Record<string, string>>({});
+  useEffect(() => {
+    window.localStorage.setItem("simpanwaste-distributions", JSON.stringify(rows));
+  }, [rows]);
+  const totalWeight = rows.reduce((total, row) => total + row.weight, 0);
+  const activePartners = new Set(rows.map((row) => row.partner)).size;
+  const categoryTotals = rows.reduce<Record<string, number>>((totals, row) => {
+    totals[row.category] = (totals[row.category] || 0) + row.weight;
+    return totals;
+  }, {});
+  const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+  const formatDistributionDate = (date: string) =>
+    new Intl.DateTimeFormat("id-ID", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${date}T00:00:00Z`));
+  const saveDistribution = (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingRow) return;
+    const errors: Record<string, string> = {};
+    if (!editingRow.date) errors.date = "Tanggal distribusi wajib diisi.";
+    if (!partners.includes(editingRow.partner)) errors.partner = "Pilih mitra yang tersedia.";
+    if (!categories.some((category) => category.name === editingRow.category))
+      errors.category = "Pilih kategori dari Data Master.";
+    if (!(editingRow.weight > 0)) errors.weight = "Berat harus lebih dari 0 kg.";
+    setDistributionErrors(errors);
+    if (Object.keys(errors).length) return;
+    setRows((current) =>
+      current.map((row) => (row.id === editingRow.id ? { ...editingRow } : row)),
+    );
+    setEditingRow(null);
+    setDistributionErrors({});
+    notify("Data distribusi berhasil diperbarui.");
+  };
   return (
     <>
       <PageTitle
@@ -4483,18 +7687,23 @@ function DistributionPage({ notify }: { notify: (t: string) => void }) {
         }
       />
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Total bulan ini" value="2.460 kg" detail="6 pengiriman" icon={Truck} />
+        <StatCard
+          label="Total bulan ini"
+          value={`${totalWeight.toLocaleString("id-ID")} kg`}
+          detail={`${rows.length} pengiriman`}
+          icon={Truck}
+        />
         <StatCard
           label="Mitra aktif"
-          value="3 mitra"
+          value={`${activePartners} mitra`}
           detail="Seluruhnya terverifikasi"
           icon={Building2}
           tone="blue"
         />
         <StatCard
           label="Kategori terbanyak"
-          value="Plastik PET"
-          detail="1.120 kg tersalurkan"
+          value={topCategory?.[0] || "Belum ada"}
+          detail={`${(topCategory?.[1] || 0).toLocaleString("id-ID")} kg tersalurkan`}
           icon={Recycle}
           tone="amber"
         />
@@ -4512,24 +7721,31 @@ function DistributionPage({ notify }: { notify: (t: string) => void }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.date}</td>
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{formatDistributionDate(r.date)}</td>
                   <td className="font-bold">{r.partner}</td>
                   <td>{r.category}</td>
                   <td className="font-bold">{r.weight} kg</td>
                   <td>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" className="min-h-8 px-2">
-                        <Pencil size={15} />
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => notify("Data distribusi dihapus.")}
-                        className="min-h-8 px-2"
+                    <div className="flex min-w-max items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingRow({ ...r });
+                          setDistributionErrors({});
+                        }}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 active:scale-[.97]"
                       >
-                        <Trash2 size={15} />
-                      </Button>
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeletingRow(r)}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 active:scale-[.97]"
+                      >
+                        <Trash2 size={14} /> Hapus
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -4550,14 +7766,14 @@ function DistributionPage({ notify }: { notify: (t: string) => void }) {
           >
             <Field label="Mitra pengepul">
               <select className="input">
-                <option>PT Sriwijaya Daur Ulang</option>
-                <option>Mitra Kertas Musi</option>
-                <option>CV Logam Jaya</option>
+                {partners.map((partner) => (
+                  <option key={partner}>{partner}</option>
+                ))}
               </select>
             </Field>
             <Field label="Kategori sampah">
               <select className="input">
-                {categoriesSeed.map((c) => (
+                {categories.map((c) => (
                   <option key={c.name}>{c.name}</option>
                 ))}
               </select>
@@ -4572,6 +7788,123 @@ function DistributionPage({ notify }: { notify: (t: string) => void }) {
               Simpan distribusi
             </Button>
           </form>
+        </Modal>
+      )}
+      {editingRow && (
+        <Modal title="Edit Data Distribusi" onClose={() => setEditingRow(null)}>
+          <form onSubmit={saveDistribution} className="space-y-4">
+            <Field label="Tanggal distribusi">
+              <input
+                type="date"
+                value={editingRow.date}
+                onChange={(event) => {
+                  setEditingRow((current) =>
+                    current ? { ...current, date: event.target.value } : current,
+                  );
+                  setDistributionErrors((current) => ({ ...current, date: "" }));
+                }}
+                className={`input ${distributionErrors.date ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              />
+              {distributionErrors.date && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">
+                  {distributionErrors.date}
+                </p>
+              )}
+            </Field>
+            <Field label="Mitra pengepul">
+              <select
+                value={editingRow.partner}
+                onChange={(event) =>
+                  setEditingRow((current) =>
+                    current ? { ...current, partner: event.target.value } : current,
+                  )
+                }
+                className="input"
+              >
+                {partners.map((partner) => (
+                  <option key={partner}>{partner}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Kategori sampah">
+              <select
+                value={editingRow.category}
+                onChange={(event) =>
+                  setEditingRow((current) =>
+                    current ? { ...current, category: event.target.value } : current,
+                  )
+                }
+                className="input"
+              >
+                {categories.map((category) => (
+                  <option key={category.name}>{category.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Berat sampah (kg)">
+              <input
+                type="number"
+                min=".1"
+                step=".1"
+                value={editingRow.weight || ""}
+                onChange={(event) => {
+                  setEditingRow((current) =>
+                    current ? { ...current, weight: Number(event.target.value) } : current,
+                  );
+                  setDistributionErrors((current) => ({ ...current, weight: "" }));
+                }}
+                className={`input ${distributionErrors.weight ? "border-red-400 ring-2 ring-red-100" : ""}`}
+              />
+              {distributionErrors.weight && (
+                <p className="mt-1.5 text-xs font-semibold text-red-600">
+                  {distributionErrors.weight}
+                </p>
+              )}
+            </Field>
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+              <Button variant="secondary" onClick={() => setEditingRow(null)}>
+                Batal
+              </Button>
+              <Button type="submit">
+                <Check size={16} /> Simpan Perubahan
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {deletingRow && (
+        <Modal title="Hapus Data Distribusi?" onClose={() => setDeletingRow(null)}>
+          <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+            <div className="flex items-start gap-3">
+              <Trash2 className="mt-0.5 shrink-0 text-red-700" size={20} />
+              <div>
+                <p className="text-sm font-bold text-red-900">
+                  Apakah Anda yakin ingin menghapus catatan distribusi ini?
+                </p>
+                <dl className="mt-3 space-y-2 text-xs text-red-800">
+                  <InfoRow label="Mitra" value={deletingRow.partner} />
+                  <InfoRow label="Kategori" value={deletingRow.category} />
+                  <InfoRow label="Berat" value={`${deletingRow.weight} kg`} />
+                  <InfoRow label="Tanggal" value={formatDistributionDate(deletingRow.date)} />
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="secondary" onClick={() => setDeletingRow(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setRows((current) => current.filter((row) => row.id !== deletingRow.id));
+                setDeletingRow(null);
+                notify("Data distribusi berhasil dihapus.");
+              }}
+            >
+              <Trash2 size={16} /> Ya, Hapus
+            </Button>
+          </div>
         </Modal>
       )}
     </>
@@ -4598,10 +7931,12 @@ function Modal({
   title,
   onClose,
   children,
+  wide = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  wide?: boolean;
 }) {
   return (
     <div
@@ -4610,7 +7945,9 @@ function Modal({
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl ${
+          wide ? "max-w-4xl" : "max-w-lg"
+        }`}
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-extrabold">{title}</h2>
@@ -4632,7 +7969,12 @@ export default function App() {
     const handlePopState = () => {
       const nextPath = window.location.pathname;
       setPath(nextPath);
-      if (["/", "/login", "/register"].includes(nextPath)) setRole(null);
+      if (
+        ["/", "/login", "/register", "/alur-penyetoran", "/impact-kami", "/about-us"].includes(
+          nextPath,
+        )
+      )
+        setRole(null);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -4675,6 +8017,18 @@ export default function App() {
 
   if (path === "/register") {
     return <Register onBack={() => navigate("/login")} />;
+  }
+
+  if (path === "/alur-penyetoran") {
+    return <PublicInfoPage page="alur" navigate={navigate} />;
+  }
+
+  if (path === "/impact-kami") {
+    return <PublicInfoPage page="impact" navigate={navigate} />;
+  }
+
+  if (path === "/about-us") {
+    return <PublicInfoPage page="about" navigate={navigate} />;
   }
 
   return <LandingPage navigate={navigate} />;

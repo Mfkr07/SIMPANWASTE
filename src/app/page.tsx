@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect } from "react";
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
+import ProgramTabunganSection from "@/components/landing/ProgramTabunganSection";
 import StatsSection from "@/components/landing/StatsSection";
 import AboutSection from "@/components/landing/AboutSection";
 import FeaturesSection from "@/components/landing/FeaturesSection";
@@ -9,36 +13,56 @@ import CtaSection from "@/components/landing/CtaSection";
 import Footer from "@/components/landing/Footer";
 
 export default function HomePage() {
-  return (
-    <div className="min-h-screen flex flex-col bg-white selection:bg-[#1E7E48] selection:text-white">
-      {/* Sticky Top Navigation */}
-      <Navbar />
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
 
-      {/* Main Landing Page Content */}
-      <main className="flex-grow">
-        {/* 1. Hero Section */}
+    const elements = document.querySelectorAll("[data-reveal]");
+    elements.forEach((element) => observer.observe(element));
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="min-h-screen overflow-x-hidden bg-white text-slate-800">
+      {/* 1. Header / Navbar */}
+      <Navbar activePath="/" />
+
+      <main>
+        {/* 2. Hero Section dengan LandingIllustration & Floating Badges */}
         <HeroSection />
 
-        {/* 2. Gambaran Sistem (Statistik Dampak) */}
+        {/* 3. Program Tabungan (Tabungan Sampah, Pendidikan, Kurban, Umroh) */}
+        <ProgramTabunganSection />
+
+        {/* 4. Gambaran Sistem (Statistik Demonstrasi) */}
         <StatsSection />
 
-        {/* 3. Tentang SIMPANWASTE */}
+        {/* 5. Tentang SIMPANWASTE */}
         <AboutSection />
 
-        {/* 4. Fitur Utama */}
+        {/* 6. Fitur Utama */}
         <FeaturesSection />
 
-        {/* 5. Alur Penyetoran */}
+        {/* 7. Alur Penyetoran (4 Langkah) */}
         <StepsSection />
 
-        {/* 6. Bank Sampah Aktif & Pratinjau Maps */}
+        {/* 8. Maps Bank Sampah Interaktif Palembang (Graha Pena & Referensi) */}
         <MapsPreviewSection />
 
-        {/* 7. Banner Aksi (CTA) */}
+        {/* 9. Bersama Untuk Lingkungan Banner (CTA Section) */}
         <CtaSection />
       </main>
 
-      {/* Institutional Dark Footer */}
+      {/* 10. Footer Publik */}
       <Footer />
     </div>
   );

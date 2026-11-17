@@ -2,115 +2,146 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Leaf, Menu, X, ArrowRight } from "lucide-react";
+import { Recycle, Menu, X } from "lucide-react";
 
-export default function Navbar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  const navLinks = [
-    { label: "Beranda", href: "#hero" },
-    { label: "Tentang Sistem", href: "#tentang" },
-    { label: "Fitur", href: "#fitur" },
-    { label: "Alur Penyetoran", href: "#alur" },
-    { label: "Maps Bank Sampah", href: "#maps" },
-  ];
-
+export function BrandMark({ className = "" }: { className?: string }) {
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100 transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
-          {/* Brand Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-[#1E7E48] text-white flex items-center justify-center shadow-sm shadow-[#1E7E48]/20 group-hover:scale-105 transition-transform">
-              <Leaf className="w-5 h-5 fill-current" />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-gray-900 tracking-tight text-lg leading-tight">
-                SIMPANWASTE
-              </span>
-              <span className="text-[10px] font-semibold text-[#1E7E48] tracking-widest uppercase">
-                PALEMBANG PILOT
-              </span>
-            </div>
-          </Link>
-
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="hover:text-[#1E7E48] transition-colors py-1 relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-0.5 after:bg-[#1E7E48] hover:after:w-full after:transition-all"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-
-          {/* Desktop Auth Buttons */}
-          <div className="hidden md:flex items-center gap-3">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-gray-700 hover:text-[#1E7E48] px-4 py-2.5 rounded-xl transition-colors hover:bg-gray-50"
-            >
-              Masuk
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex items-center gap-1.5 bg-[#1E7E48] hover:bg-[#18663A] text-white text-sm font-medium px-4 py-2.5 rounded-xl transition shadow-sm hover:shadow shadow-[#1E7E48]/20"
-            >
-              <span>Daftar</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Mobile Hamburger Button */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition"
-            aria-label="Buka menu navigasi"
-          >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Menu Dropdown */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-b border-gray-100 bg-white/98 backdrop-blur-lg px-4 pt-3 pb-6 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex flex-col space-y-2">
-            {navLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-3 py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-[#EAF6EE] hover:text-[#1E7E48] transition"
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-
-          <div className="pt-4 border-t border-gray-100 flex flex-col gap-2.5">
-            <Link
-              href="/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center py-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-200 transition"
-            >
-              Masuk
-            </Link>
-            <Link
-              href="/register"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center py-2.5 rounded-xl text-sm font-medium text-white bg-[#1E7E48] hover:bg-[#18663A] transition shadow-sm"
-            >
-              Daftar Sekarang
-            </Link>
-          </div>
-        </div>
-      )}
-    </header>
+    <span
+      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-green-700 text-white shadow-sm ${className}`}
+      aria-hidden="true"
+    >
+      <Recycle size={23} strokeWidth={2.35} />
+    </span>
   );
 }
 
+export function Logo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <BrandMark />
+      {!compact && (
+        <div className="text-left">
+          <div className="font-extrabold tracking-tight text-slate-900 leading-tight">
+            SIMPAN<span className="text-green-700">WASTE</span>
+          </div>
+          <div className="text-[10px] font-semibold tracking-[.15em] text-slate-400">
+            PALEMBANG PILOT
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Navbar({ activePath = "/" }: { activePath?: string }) {
+  const [mobileMenu, setMobileMenu] = useState(false);
+
+  const publicNav = [
+    { label: "Beranda", href: "/" },
+    { label: "Alur Penyetoran", href: "/alur-penyetoran" },
+    { label: "Impact Kami", href: "/impact-kami" },
+    { label: "About Us", href: "/about-us" },
+  ];
+
+  const openWhatsApp = () => {
+    alert(
+      "Nomor WhatsApp utama belum tersedia. Silakan lengkapi data kontak terverifikasi."
+    );
+  };
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
+        <Link href="/" aria-label="Kembali ke beranda">
+          <Logo />
+        </Link>
+
+        {/* Desktop Navigation */}
+        <nav className="hidden items-center gap-7 lg:flex">
+          {publicNav.map(({ label, href }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`text-sm font-semibold transition ${
+                activePath === href
+                  ? "text-green-700 font-bold"
+                  : "text-slate-600 hover:text-green-700"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Desktop Buttons */}
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link
+            href="/login"
+            className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition active:scale-[.98]"
+          >
+            Masuk
+          </Link>
+          <button
+            type="button"
+            onClick={openWhatsApp}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-800 transition active:scale-[.98]"
+          >
+            Setor Sekarang
+          </button>
+        </div>
+
+        {/* Mobile Hamburger Button */}
+        <button
+          type="button"
+          onClick={() => setMobileMenu((open) => !open)}
+          className="rounded-xl border border-slate-200 p-2.5 text-slate-700 lg:hidden"
+          aria-label="Buka menu navigasi"
+          aria-expanded={mobileMenu}
+        >
+          {mobileMenu ? <X size={21} /> : <Menu size={21} />}
+        </button>
+      </div>
+
+      {/* Mobile Drawer */}
+      <div
+        className={`overflow-hidden border-t border-slate-100 bg-white transition-all duration-300 lg:hidden ${
+          mobileMenu ? "max-h-[480px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
+        }`}
+      >
+        <nav className="space-y-1 px-5 py-4">
+          {publicNav.map(({ label, href }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setMobileMenu(false)}
+              className={`block w-full rounded-xl px-3 py-3 text-left text-sm font-semibold transition hover:bg-green-50 ${
+                activePath === href ? "bg-green-50 text-green-700 font-bold" : "text-slate-700 hover:text-green-700"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+          <div className="grid grid-cols-2 gap-2 pt-3">
+            <Link
+              href="/login"
+              onClick={() => setMobileMenu(false)}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+            >
+              Masuk
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenu(false);
+                openWhatsApp();
+              }}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 transition shadow-sm"
+            >
+              Setor Sekarang
+            </button>
+          </div>
+        </nav>
+      </div>
+    </header>
+  );
+}

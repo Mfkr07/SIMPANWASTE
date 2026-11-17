@@ -1,133 +1,249 @@
-import Link from "next/link";
-import Image from "next/image";
-import { MapPin, Clock, ArrowRight, Info, CheckCircle2, Navigation } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { MapPin, Clock3, CalendarDays, ArrowRight } from "lucide-react";
+
+export const grahaPenaLocation = {
+  name: "Bank Sampah Graha Pena Palembang",
+  shortName: "Bank Sampah Graha Pena",
+  address:
+    "Jl. Kolonel H. Barlian KM.6,5 No.773, Srijaya, Kec. Alang-Alang Lebar, Kota Palembang, Sumatera Selatan 30961",
+  landmark: "Bersebelahan dengan Taman Wisata Punti Kayu.",
+  weekdaySchedule: "09.00–16.00 WIB",
+  saturdaySchedule: "Kegiatan rutin pemilahan sampah",
+};
+
+export const banks = [
+  {
+    name: "Bank Sampah Sejahtera",
+    address: "Jl. Merdeka No. 24, Bukit Kecil",
+    hours: "Sen–Sab, 08.00–15.00",
+  },
+  {
+    name: "Bank Sampah Melati",
+    address: "Jl. Demang Lebar Daun, Ilir Barat I",
+    hours: "Sel–Min, 07.30–14.00",
+  },
+  {
+    name: "Bank Sampah Kalidoni Hijau",
+    address: "Jl. Mayor Zen No. 18, Kalidoni",
+    hours: "Sen–Jum, 08.00–16.00",
+  },
+];
 
 export default function MapsPreviewSection() {
-  const bankSampahList = [
+  const [selectedLandingLocation, setSelectedLandingLocation] = useState("graha-pena");
+
+  const landingLocations = [
     {
-      name: "Bank Sampah Sejahtera",
-      address: "Jl. Merdeka No. 24, Bukit Kecil",
-      hours: "Sen–Sab, 08.00–15.00",
-      status: "Aktif",
+      id: "graha-pena",
+      name: grahaPenaLocation.name,
+      address: grahaPenaLocation.address,
+      hours: `Senin–Jumat: ${grahaPenaLocation.weekdaySchedule}`,
+      saturday: `Sabtu: ${grahaPenaLocation.saturdaySchedule}`,
+      landmark: grahaPenaLocation.landmark,
+      partner: true,
     },
-    {
-      name: "Bank Sampah Melati",
-      address: "Jl. Demang Lebar Daun, Ilir Barat I",
-      hours: "Sel–Min, 07.30–14.00",
-      status: "Aktif",
-    },
-    {
-      name: "Bank Sampah Kalidoni Hijau",
-      address: "Jl. Mayor Zen No. 18, Kalidoni",
-      hours: "Sen–Jum, 08.00–16.00",
-      status: "Aktif",
-    },
+    ...banks.map((bank, index) => ({
+      ...bank,
+      id: `referensi-${index}`,
+      address: `${bank.address}, Palembang, Sumatera Selatan`,
+      saturday: "",
+      landmark: "",
+      partner: false,
+    })),
   ];
 
+  const activeLandingLocation =
+    landingLocations.find((location) => location.id === selectedLandingLocation) ||
+    landingLocations[0];
+
+  const activeLandingAddress = encodeURIComponent(activeLandingLocation.address);
+
   return (
-    <section id="maps" className="py-16 lg:py-24 bg-[#F4F8F5] border-t border-gray-100 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-10 items-center">
-          {/* Left Column: Information & Waste Bank Directory */}
-          <div className="lg:col-span-6 flex flex-col justify-center">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#1E7E48]">
-                BANK SAMPAH AKTIF
-              </span>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mt-2 leading-tight">
-                Temukan lokasi penyetoran di Palembang
-              </h2>
-              <p className="text-sm sm:text-base text-gray-600 mt-3 leading-relaxed">
-                Lihat lokasi yang tersedia beserta alamat dan jam operasionalnya. Data berikut
-                mengikuti data demonstrasi yang digunakan di dalam aplikasi.
-              </p>
-            </div>
+    <section id="lokasi" className="scroll-mt-20 bg-[#f3f8f3] py-20 sm:py-28">
+      <div className="mx-auto max-w-7xl px-5 lg:px-8">
+        <div className="max-w-3xl">
+          <p className="text-xs font-extrabold uppercase tracking-[.16em] text-green-700">
+            Maps Bank Sampah
+          </p>
+          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+            Temukan lokasi penyetoran di Palembang
+          </h2>
+          <p className="mt-5 text-base leading-8 text-slate-600">
+            Graha Pena merupakan mitra kerja sama utama SIMPANWASTE. Lokasi lainnya tetap
+            ditampilkan sebagai referensi bank sampah berdasarkan data demonstrasi aplikasi.
+          </p>
+        </div>
 
-            {/* Demo Notice Box */}
-            <div className="bg-white/80 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-600 my-5 flex items-center gap-2.5 shadow-xs">
-              <Info className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Data berikut mengikuti data demonstrasi yang digunakan di dalam sistem.</span>
-            </div>
-
-            {/* Waste Bank Cards List */}
-            <div className="space-y-3.5">
-              {bankSampahList.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200/90 shadow-sm hover:border-[#1E7E48]/40 hover:shadow transition-all flex items-start justify-between gap-4 group"
-                >
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-9 h-9 rounded-xl bg-[#EAF6EE] text-[#1E7E48] group-hover:bg-[#1E7E48] group-hover:text-white transition-colors flex items-center justify-center shrink-0 mt-0.5">
-                      <MapPin className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm sm:text-base font-bold text-gray-900 group-hover:text-[#1E7E48] transition-colors">
-                        {item.name}
-                      </h4>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {item.address}
-                      </p>
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500 mt-2">
-                        <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        <span>{item.hours}</span>
+        <div className="mt-10 grid gap-8 lg:grid-cols-[.82fr_1.18fr]">
+          {/* Kolom Kiri: Daftar Card Lokasi */}
+          <div data-reveal className="reveal-card">
+            <div className="space-y-3">
+              {landingLocations.map((location) => {
+                const isSelected = location.id === activeLandingLocation.id;
+                return (
+                  <article
+                    key={location.id}
+                    className={`transition-all duration-200 ${
+                      location.partner
+                        ? "rounded-2xl border-2 border-green-600 bg-green-50 p-5 shadow-[0_10px_30px_rgba(22,101,52,.09)]"
+                        : "rounded-2xl border border-slate-200 bg-white p-4"
+                    } ${isSelected && !location.partner ? "ring-2 ring-green-600 shadow-md" : ""}`}
+                  >
+                    <div className="flex gap-3">
+                      <div
+                        className={`grid shrink-0 place-items-center rounded-xl ${
+                          location.partner
+                            ? "h-11 w-11 bg-green-800 text-white"
+                            : "h-10 w-10 bg-green-50 text-green-600"
+                        }`}
+                      >
+                        <MapPin size={location.partner ? 21 : 18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-extrabold text-slate-900">
+                            {location.name}
+                          </h3>
+                          {location.partner && (
+                            <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700 ring-1 ring-inset ring-green-600/15">
+                              Mitra SIMPANWASTE
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          {location.address}
+                        </p>
+                        {location.landmark && (
+                          <p className="mt-1 text-xs font-semibold text-slate-600">
+                            {location.landmark}
+                          </p>
+                        )}
+                        <div className="mt-3 space-y-1.5 text-xs font-bold text-green-700">
+                          <p className="flex items-start gap-1.5">
+                            <Clock3 className="mt-0.5 shrink-0" size={13} /> {location.hours}
+                          </p>
+                          {location.saturday && (
+                            <p className="flex items-start gap-1.5">
+                              <CalendarDays className="mt-0.5 shrink-0" size={13} />{" "}
+                              {location.saturday}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLandingLocation(location.id)}
+                          className="mt-4 inline-flex items-center gap-1.5 text-xs font-extrabold text-green-700 transition hover:text-green-900"
+                        >
+                          Lihat Detail <ArrowRight size={14} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-
-                  <span className="inline-flex items-center gap-1 bg-green-100 text-green-800 border border-green-200 text-xs font-semibold px-2.5 py-0.5 rounded-full shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-600 animate-pulse" />
-                    {item.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Login to Open Maps Action Button */}
-            <div className="mt-7">
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 bg-[#1E7E48] hover:bg-[#18663A] text-white text-sm font-semibold px-6 py-3.5 rounded-xl transition-all shadow-md shadow-[#1E7E48]/20 hover:shadow-lg hover:-translate-y-0.5"
-              >
-                <span>Masuk untuk Buka Maps</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <p className="text-[11px] text-gray-400 mt-2">
-                * Peta interaktif lengkap dan fitur navigasi rute hanya dapat diakses setelah masuk ke akun.
-              </p>
+                  </article>
+                );
+              })}
             </div>
           </div>
 
-          {/* Right Column: Visual Map Preview */}
-          <div className="lg:col-span-6 relative w-full flex flex-col items-center">
-            <div className="relative w-full aspect-[4/3.8] rounded-3xl overflow-hidden border border-gray-200/90 shadow-xl bg-[#E6F0EA] p-3 flex flex-col justify-between">
-              {/* Genuine Figma Maps Preview Image */}
-              <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-inner bg-white/40">
-                <Image
-                  src="/images/maps-preview.png"
-                  alt="Pratinjau Peta Bank Sampah Palembang"
-                  fill
-                  className="object-cover object-center"
-                />
+          {/* Kolom Kanan: Peta Interaktif & Floating Overlays */}
+          <div
+            data-reveal
+            className="reveal-card self-start rounded-[2rem] border border-white bg-white p-3 shadow-xl lg:sticky lg:top-24"
+          >
+            <div className="relative overflow-hidden rounded-[1.4rem] bg-slate-100">
+              <iframe
+                key={activeLandingLocation.id}
+                title={`Peta ${activeLandingLocation.name}`}
+                src={`https://www.google.com/maps?q=${activeLandingAddress}&z=15&output=embed`}
+                className="h-[580px] w-full border-0"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+              />
+
+              {/* Floating Pills Selector di Bagian Atas Peta */}
+              <div
+                className="absolute left-4 right-4 top-4 flex flex-wrap gap-2"
+                aria-label="Pilih lokasi bank sampah"
+              >
+                {landingLocations.map((location) => {
+                  const active = location.id === activeLandingLocation.id;
+                  return (
+                    <button
+                      key={location.id}
+                      type="button"
+                      onClick={() => setSelectedLandingLocation(location.id)}
+                      aria-label={`Pusatkan peta ke ${location.name}`}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-extrabold shadow-md backdrop-blur transition ${
+                        location.partner
+                          ? `border-green-900 bg-green-800 text-white ring-4 ring-green-300/50 ${
+                              active ? "scale-105" : ""
+                            }`
+                          : `border-green-100 bg-green-50/95 text-green-700 ${
+                              active ? "ring-2 ring-green-400" : "hover:bg-white"
+                            }`
+                      }`}
+                    >
+                      <MapPin size={location.partner ? 17 : 14} />
+                      <span className="hidden sm:inline">
+                        {location.partner
+                          ? "Graha Pena"
+                          : location.name.replace("Bank Sampah ", "")}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Bottom Floating Map Information Card */}
-              <div className="absolute bottom-6 left-6 right-6 bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-gray-200/80 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#1E7E48] text-white flex items-center justify-center shrink-0">
-                    <Navigation className="w-4 h-4" />
-                  </div>
+              {/* Floating Detail Card di Bagian Bawah Peta */}
+              <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-white/95 p-4 shadow-xl backdrop-blur">
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
-                    <p className="text-xs font-bold text-gray-900 leading-tight">
-                      Area Pilot: Kota Palembang
+                    <p
+                      className={`text-[10px] font-extrabold uppercase tracking-[.12em] ${
+                        activeLandingLocation.partner ? "text-green-700" : "text-slate-500"
+                      }`}
+                    >
+                      {activeLandingLocation.partner
+                        ? "Mitra Kerja Sama SIMPANWASTE"
+                        : "Lokasi Bank Sampah Lainnya"}
                     </p>
-                    <p className="text-[11px] text-gray-500 leading-tight mt-0.5">
-                      Pusat sebaran bank sampah terdata
+                    <p className="mt-1 text-sm font-extrabold text-slate-900">
+                      {activeLandingLocation.name}
                     </p>
+                    <p className="mt-1 max-w-lg text-[11px] leading-5 text-slate-500">
+                      {activeLandingLocation.address}
+                    </p>
+                    <p className="mt-1 max-w-lg text-[11px] font-semibold leading-5 text-slate-600">
+                      {activeLandingLocation.hours}
+                      {activeLandingLocation.saturday
+                        ? ` · ${activeLandingLocation.saturday}`
+                        : ""}
+                    </p>
+                    {activeLandingLocation.landmark && (
+                      <p className="mt-1 max-w-lg text-[11px] leading-5 text-slate-500">
+                        {activeLandingLocation.landmark}
+                      </p>
+                    )}
                   </div>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${activeLandingAddress}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-green-700 px-3 py-2 text-xs font-extrabold text-white transition hover:bg-green-800"
+                  >
+                    Buka Maps <ArrowRight size={14} />
+                  </a>
                 </div>
-
-                <div className="bg-[#EAF6EE] border border-[#C6E6D1] text-[#1E7E48] text-xs font-bold px-3 py-1.5 rounded-full shrink-0">
-                  8 Titik Tersedia
+                <div className="mt-3 flex flex-wrap gap-4 border-t border-slate-100 pt-3 text-[10px] font-bold text-slate-600">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-green-800 ring-2 ring-green-200" />
+                    Mitra SIMPANWASTE
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-green-300" />
+                    Lokasi Bank Sampah Lainnya
+                  </span>
                 </div>
               </div>
             </div>
@@ -137,4 +253,3 @@ export default function MapsPreviewSection() {
     </section>
   );
 }
-

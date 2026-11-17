@@ -1,195 +1,181 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Leaf,
-  LogOut,
-  User,
-  Wallet,
-  PlusCircle,
+  Scale,
+  ClipboardList,
+  Recycle,
+  WalletCards,
+  Eye,
+  EyeOff,
   MapPin,
-  BookOpen,
-  ArrowUpRight,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  Sparkles,
+  Clock3,
+  Plus,
 } from "lucide-react";
+import { Card, StatCard, Badge } from "@/components/warga/WargaUI";
+import { useWarga } from "@/context/WargaContext";
+import { banks, money } from "@/data/wargaSeedData";
 
 export default function WargaDashboardPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { citizenProfile, reports, balance } = useWarga();
+  const [balanceVisible, setBalanceVisible] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const mine = reports.filter(
+    (r) =>
+      r.citizen === citizenProfile.name ||
+      r.citizen === "Ayu Lestari" ||
+      r.citizen === citizenProfile.username
+  );
 
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch (e) {
-    } finally {
-      router.push("/login");
-      router.refresh();
-    }
-  };
+  const today = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+
+  const firstName = citizenProfile.name.split(" ")[0];
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] flex flex-col">
-      {/* Top Navigation Bar */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#1E7E48] text-white flex items-center justify-center shadow-xs">
-              <Leaf className="w-5 h-5 fill-current" />
-            </div>
-            <div>
-              <span className="font-bold text-gray-900 tracking-tight text-base">
-                SIMPANWASTE
-              </span>
-              <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase">
-                Area Warga
-              </span>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
-              <User className="w-3.5 h-3.5 text-[#1E7E48]" />
-              <span className="font-semibold text-gray-900">
-                {user?.nama || "Warga Palembang"}
-              </span>
-              <span className="text-gray-400">(@{user?.username || "warga"})</span>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl transition"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
-            </button>
-          </div>
+    <div className="space-y-6">
+      {/* Welcome Banner */}
+      <div className="rounded-2xl bg-green-800 p-6 text-white sm:flex sm:items-center sm:justify-between sm:p-8">
+        <div>
+          <p className="text-sm font-semibold text-green-200">{today}</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
+            Selamat datang, {firstName}
+          </h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-green-100">
+            Setiap sampah yang Anda pilah ikut membangun Palembang yang lebih bersih.
+          </p>
         </div>
-      </header>
+        <Link
+          href="/warga/buat-laporan"
+          className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/15 bg-green-500/30 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-500/45 active:scale-[.98] sm:mt-0"
+        >
+          <Plus size={18} className="shrink-0 text-white" />
+          <span className="whitespace-nowrap">Buat laporan setoran</span>
+        </Link>
+      </div>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Banner */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/90 shadow-sm relative overflow-hidden mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 4 Stat Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total sampah terkumpul"
+          value="19,1 kg"
+          detail="+3,2 kg bulan ini"
+          icon={Scale}
+        />
+        <StatCard
+          label="Total laporan"
+          value={`${mine.length} laporan`}
+          detail={`${mine.filter((r) => r.status === "Menunggu").length} sedang diproses`}
+          icon={ClipboardList}
+          tone="blue"
+        />
+        <StatCard
+          label="Setoran terakhir"
+          value="3,2 kg"
+          detail="12 Maret 2025"
+          icon={Recycle}
+          tone="amber"
+        />
+        <Card className="border-green-200 bg-green-50/60">
+          <div className="flex items-start justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 bg-[#EAF6EE] text-[#1E7E48] text-xs font-bold px-3 py-1 rounded-full mb-3">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Status Akun: Terverifikasi (Fase 1 Aktif)</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
-                Selamat Datang, {user?.nama || "Warga SIMPANWASTE"}!
-              </h1>
-              <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-                Akun Anda telah berhasil diautentikasi melalui Supabase Auth. Di bawah ini
-                adalah ikhtisar fitur warga yang disiapkan sesuai roadmap PRD.md.
+              <p className="text-sm font-semibold text-slate-600">Saldo tabungan</p>
+              <p className="mt-2 text-2xl font-extrabold tracking-tight text-[#166534]">
+                {balanceVisible ? money(balance) : "Rp ••••••"}
               </p>
+              <button
+                type="button"
+                onClick={() => setBalanceVisible((current) => !current)}
+                className="mt-2 flex items-center gap-1.5 text-xs font-bold text-green-700 transition hover:text-green-900 cursor-pointer"
+              >
+                {balanceVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                {balanceVisible ? "Sembunyikan Saldo" : "Lihat Saldo"}
+              </button>
             </div>
-
-            <div className="bg-[#153626] text-white p-5 rounded-2xl flex flex-col justify-between min-w-[220px]">
-              <div className="flex items-center justify-between text-xs text-emerald-200">
-                <span>Saldo Tabungan</span>
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              </div>
-              <p className="text-2xl font-bold mt-2">Rp 0</p>
-              <p className="text-[10px] text-gray-300 mt-1">
-                PIN 6 Angka telah terkonfigurasi aman
-              </p>
+            <div className="grid h-11 w-11 place-items-center rounded-xl bg-green-700 text-white shadow-sm">
+              <WalletCards size={21} />
             </div>
           </div>
-        </div>
+        </Card>
+      </div>
 
-        {/* Feature Cards Grid (Fase 2-6 Preview) */}
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          Modul Layanan Warga
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* Card 1: Pelaporan Setoran */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
+      {/* 2-Column Section */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        {/* Latest Reports Card */}
+        <Card>
+          <div className="flex items-center justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-[#EAF6EE] text-[#1E7E48] flex items-center justify-center mb-4">
-                <PlusCircle className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Lapor Setoran Sampah
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Pilih metode Pickup (min. 5 kg) atau Drop-off ke Bank Sampah terdekat dengan
-                pilihan kategori anorganik terpilah.
-              </p>
+              <h2 className="font-extrabold text-slate-900">Laporan terbaru</h2>
+              <p className="mt-1 text-xs text-slate-500">Pantau progres setoran Anda</p>
             </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-md">
-                Fase 4
-              </span>
-              <span>Siap Diintegrasikan</span>
-            </div>
+            <Link href="/warga/riwayat" className="text-sm font-bold text-green-700 hover:underline">
+              Lihat semua
+            </Link>
           </div>
+          <div className="mt-5 space-y-3">
+            {mine.slice(0, 3).map((r) => (
+              <Link
+                key={r.id}
+                href="/warga/riwayat"
+                className="flex w-full items-center gap-4 rounded-xl border border-slate-100 p-3 text-left transition hover:border-green-200 hover:bg-green-50/50"
+              >
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
+                  <Recycle size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-800">{r.category}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {r.id} · {r.date}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-sm font-extrabold text-slate-900">{r.estimate} kg</p>
+                  <Badge tone={r.status === "Selesai" ? "green" : "amber"}>{r.status}</Badge>
+                </div>
+              </Link>
+            ))}
+            {mine.length === 0 && (
+              <p className="py-8 text-center text-xs text-slate-400">
+                Belum ada laporan setoran terbaru.
+              </p>
+            )}
+          </div>
+        </Card>
 
-          {/* Card 2: Riwayat & Saldo */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
+        {/* Nearest Waste Bank Card */}
+        <Card>
+          <div className="flex items-center justify-between">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center mb-4">
-                <Wallet className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Riwayat & Tabungan
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Pantau berat aktual yang diverifikasi petugas dan catatan konversi Rupiah
-                yang dilindungi otentikasi PIN 6 angka.
-              </p>
+              <h2 className="font-extrabold text-slate-900">Bank sampah terdekat</h2>
+              <p className="mt-1 text-xs text-slate-500">Lokasi aktif dan terverifikasi</p>
             </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-md">
-                Fase 5
-              </span>
-              <span>Proteksi PIN Server-Side</span>
-            </div>
+            <MapPin className="text-green-700" size={20} />
           </div>
-
-          {/* Card 3: Maps Bank Sampah */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-4">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Maps Bank Sampah Interaktif
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Eksplorasi titik bank sampah aktif di Palembang, jam kerja, rute jalan, dan
-                kontak pengelola langsung.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-blue-700 font-bold bg-blue-50 px-2.5 py-0.5 rounded-md">
-                Fase 3
-              </span>
-              <span>Peta Leaflet</span>
-            </div>
+          <div className="map-mini mt-5">
+            <div className="map-road a" />
+            <div className="map-road b" />
+            <span className="map-pin left-[48%] top-[38%] absolute -translate-x-1/2 -translate-y-1/2">
+              <MapPin size={18} />
+            </span>
           </div>
-        </div>
-      </main>
+          <h3 className="mt-4 text-sm font-bold text-slate-900">{banks[0].name}</h3>
+          <p className="mt-1 text-xs text-slate-500">{banks[0].address}</p>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Clock3 size={14} />
+              {banks[0].hours}
+            </span>
+            <Link href="/warga/maps" className="text-xs font-bold text-green-700 hover:underline">
+              Buka maps
+            </Link>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
-

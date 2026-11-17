@@ -1,0 +1,10 @@
+{
+  "description": "Mengelola setoran sampah anorganik, penimbangan, saldo, dan distribusi dalam satu sistem untuk warga, petugas, dan admin bank sampah.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

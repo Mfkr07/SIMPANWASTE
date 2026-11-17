@@ -1,3 +1,5 @@
+@import "leaflet/dist/leaflet.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,3 +14,202 @@
     color: #ffffff;
   }
 }
+
+@layer components {
+  .input {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    background: white;
+    padding: 0.72rem 0.9rem;
+    font-size: 0.875rem;
+    color: #1e293b;
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .input::placeholder {
+    color: #94a3b8;
+  }
+  .input:focus {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.11);
+    outline: none;
+  }
+  .input:disabled {
+    color: #64748b;
+    cursor: not-allowed;
+  }
+
+  .table-wrap {
+    margin-top: 1.25rem;
+    width: 100%;
+    overflow-x: auto;
+  }
+  .table-wrap table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  .table-wrap th {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .table-wrap th:first-child {
+    border-radius: 0.75rem 0 0 0.75rem;
+  }
+  .table-wrap th:last-child {
+    border-radius: 0 0.75rem 0.75rem 0;
+  }
+  .table-wrap td {
+    border-bottom: 1px solid #f1f5f9;
+    padding: 0.95rem 1rem;
+    color: #475569;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .table-wrap tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.map-mini,
+.map-large,
+.map-full {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  background-color: #e9efe9;
+  background-image:
+    linear-gradient(
+      30deg,
+      rgba(255, 255, 255, 0.8) 12%,
+      transparent 12.5%,
+      transparent 87%,
+      rgba(255, 255, 255, 0.8) 87.5%
+    ),
+    linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.7) 12%,
+      transparent 12.5%,
+      transparent 87%,
+      rgba(255, 255, 255, 0.7) 87.5%
+    );
+  background-size: 56px 96px;
+}
+.map-mini {
+  height: 145px;
+}
+.map-large {
+  height: 280px;
+}
+.map-full {
+  min-height: 580px;
+}
+.map-road {
+  position: absolute;
+  background: white;
+  box-shadow: 0 0 0 1px #dbe4dd;
+}
+.map-road.a {
+  left: -5%;
+  top: 48%;
+  width: 110%;
+  height: 13px;
+  transform: rotate(-8deg);
+}
+.map-road.b {
+  left: 48%;
+  top: -10%;
+  width: 11px;
+  height: 120%;
+  transform: rotate(17deg);
+}
+.map-pin {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 50% 50% 50% 12%;
+  background: #166534;
+  color: white;
+  box-shadow: 0 6px 15px rgba(22, 101, 52, 0.25);
+  transform: rotate(-45deg);
+  transition: transform 0.18s;
+}
+.map-pin svg {
+  transform: rotate(45deg);
+}
+
+/* Custom Leaflet Styling */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 10;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.875rem !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(229, 231, 235, 0.9) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: inherit !important;
+}
+
+.leaflet-popup-tip {
+  background: white !important;
+}
+
+.landing-intro {
+  animation: landing-rise 0.75s ease-out both;
+}
+
+.landing-illustration {
+  animation: landing-rise 0.85s 0.1s ease-out both;
+}
+
+.reveal-card {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.65s ease,
+    transform 0.65s ease;
+}
+
+.reveal-card.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-intro,
+  .landing-illustration,
+  .reveal-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+

@@ -1,189 +1,241 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Leaf,
-  LogOut,
-  User,
-  Shield,
-  BarChart3,
-  Database,
+  Scale,
+  ClipboardCheck,
+  Recycle,
   Truck,
-  Users,
-  Sparkles,
-  Settings,
+  CalendarDays,
+  Filter,
+  ArrowUpRight,
 } from "lucide-react";
+import {
+  PageTitle,
+  StatCard,
+  Card,
+  Button,
+  Badge,
+} from "@/components/admin/AdminUI";
+import { useAdmin } from "@/context/AdminContext";
 
 export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.authenticated && data.user) {
-          setUser(data.user);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch (e) {
-    } finally {
-      router.push("/login");
-      router.refresh();
-    }
-  };
+  const { distributions } = useAdmin();
+  const [selectedPeriod, setSelectedPeriod] = useState("1–18 Mar 2025");
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] flex flex-col">
-      {/* Top Header */}
-      <header className="bg-[#153626] text-white sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-              <Leaf className="w-5 h-5 fill-current" />
-            </div>
+    <>
+      <PageTitle
+        title="Dashboard Kota Palembang"
+        desc="Statistik agregat pengelolaan sampah berdasarkan data transaksi."
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" className="text-xs">
+              <CalendarDays size={15} /> {selectedPeriod}
+            </Button>
+            <Button variant="secondary" className="text-xs">
+              <Filter size={15} /> Filter
+            </Button>
+          </div>
+        }
+      />
+
+      {/* Aggregate StatCards */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Sampah terkumpul"
+          value="12.840 kg"
+          detail="+12,4% dari periode lalu"
+          icon={Scale}
+        />
+        <StatCard
+          label="Total setoran"
+          value="1.246"
+          detail="+86 transaksi bulan ini"
+          icon={ClipboardCheck}
+          tone="blue"
+        />
+        <StatCard
+          label="Kategori terbanyak"
+          value="Plastik PET"
+          detail="4.208 kg · 32,8%"
+          icon={Recycle}
+          tone="amber"
+        />
+        <StatCard
+          label="Didistribusikan"
+          value="10.760 kg"
+          detail="83,8% dari total"
+          icon={Truck}
+          tone="violet"
+        />
+      </div>
+
+      {/* Two Column Visualizations */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_.85fr]">
+        {/* Category Breakdown */}
+        <Card>
+          <div className="flex items-center justify-between">
             <div>
-              <span className="font-bold text-white tracking-tight text-base">
-                SIMPANWASTE
-              </span>
-              <span className="ml-2 text-[10px] font-bold text-emerald-200 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full uppercase">
-                Panel Administrator
-              </span>
+              <h2 className="font-extrabold text-slate-900 text-lg">
+                Sampah terkumpul per kategori
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Total berat terverifikasi (kg)
+              </p>
             </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 text-xs text-gray-200 bg-white/10 border border-white/15 px-3 py-1.5 rounded-xl">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="font-semibold text-white">
-                {user?.nama || "Admin Palembang"}
-              </span>
-              <span className="text-gray-400">(@{user?.username || "admin"})</span>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-300 hover:text-white hover:bg-rose-900/50 border border-rose-500/30 px-3 py-1.5 rounded-xl transition"
+            <Link
+              href="/admin/master"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-800 transition"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
-            </button>
+              Lihat katalog <ArrowUpRight size={14} />
+            </Link>
+          </div>
+
+          <div className="mt-6 space-y-5">
+            {[
+              ["Plastik PET", 4208, 82],
+              ["Kardus", 3150, 63],
+              ["Kertas Campur", 2420, 48],
+              ["Kaleng Aluminium", 1862, 37],
+              ["Plastik Campur", 1200, 24],
+            ].map(([n, v, p]) => (
+              <div key={String(n)}>
+                <div className="mb-2 flex justify-between text-xs">
+                  <span className="font-semibold text-slate-700">{n}</span>
+                  <span className="font-extrabold text-slate-900">
+                    {Number(v).toLocaleString("id-ID")} kg
+                  </span>
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-green-600 transition-all duration-500"
+                    style={{ width: `${p}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Collection Trend */}
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-extrabold text-slate-900 text-lg">
+                Tren pengumpulan
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Januari–Juni 2025
+              </p>
+            </div>
+            <Badge tone="green">+18,6% YTD</Badge>
+          </div>
+
+          <div className="relative mt-6 h-48 w-full overflow-hidden rounded-xl border border-slate-100 bg-slate-50/60 p-2">
+            <svg
+              viewBox="0 0 600 220"
+              preserveAspectRatio="none"
+              className="h-full w-full"
+            >
+              <defs>
+                <linearGradient id="adminChartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#16a34a" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#16a34a" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M0 185 C80 165,90 130,155 145 S250 80,315 105 S420 45,470 70 S550 25,600 35 L600 220 L0 220Z"
+                fill="url(#adminChartGradient)"
+              />
+              <path
+                d="M0 185 C80 165,90 130,155 145 S250 80,315 105 S420 45,470 70 S550 25,600 35"
+                fill="none"
+                stroke="#16a34a"
+                strokeWidth="4"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <div className="mt-3 flex justify-between px-1 text-[11px] font-semibold text-slate-400">
+            {["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"].map((m) => (
+              <span key={m}>{m}</span>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Bottom Section: Recent Distributions to Partners */}
+      <Card className="mt-6">
+        <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="font-extrabold text-slate-900 text-lg">
+              Distribusi terbaru ke mitra
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Ringkasan data distribusi sampah bulan berjalan
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Badge tone="green">2.460 kg tersalurkan</Badge>
+            <Link
+              href="/admin/distribusi"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-800 transition"
+            >
+              Kelola Distribusi <ArrowUpRight size={14} />
+            </Link>
           </div>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200/90 shadow-sm mb-8">
-          <div className="inline-flex items-center gap-2 bg-emerald-50 text-[#1E7E48] border border-emerald-200 text-xs font-bold px-3 py-1 rounded-full mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Hak Akses Super Admin Terverifikasi (Fase 1 Selesai)</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
-            Pusat Kendali Sistem & Data Master
-          </h1>
-          <p className="text-sm text-gray-600 mt-1 max-w-2xl">
-            Selamat datang, {user?.nama || "Administrator"}. Anda memiliki otoritas penuh
-            untuk mengelola master kategori & harga sampah, batas pickup, akun petugas, serta memantau analitik agregat.
-          </p>
+        <div className="table-wrap">
+          <table className="w-full min-w-[700px] border-collapse text-left">
+            <thead>
+              <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+                <th className="w-[140px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Tanggal
+                </th>
+                <th className="w-[240px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Mitra pengepul
+                </th>
+                <th className="w-[200px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Kategori
+                </th>
+                <th className="w-[120px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600 text-center">
+                  Berat
+                </th>
+                <th className="w-[120px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600 text-center">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {distributions.slice(0, 5).map((row) => (
+                <tr
+                  key={row.id}
+                  className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
+                >
+                  <td className="px-4 py-3.5 text-slate-600 text-sm whitespace-nowrap">
+                    {row.date}
+                  </td>
+                  <td className="px-4 py-3.5 font-bold text-slate-900 text-sm">
+                    {row.partner}
+                  </td>
+                  <td className="px-4 py-3.5 text-slate-700 text-sm">
+                    {row.category}
+                  </td>
+                  <td className="px-4 py-3.5 font-bold text-slate-900 text-sm text-center whitespace-nowrap">
+                    {row.weight} kg
+                  </td>
+                  <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                    <Badge tone="green">Selesai</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        {/* Administration Modules Grid */}
-        <h2 className="text-lg font-bold text-gray-900 mb-4">
-          Modul Pengelolaan Admin
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1E7E48] flex items-center justify-center mb-4">
-                <Database className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Data Master Sampah
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Katalog 5 kategori sampah terkonfirmasi x 3 matriks kondisi harga (Bersih, Kotor, Tercampur Air).
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-md">
-                Fase 2
-              </span>
-              <span>CRUD Master Data</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center mb-4">
-                <Users className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Kelola Akun Petugas
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Pembuatan dan penonaktifan akun staf penimbangan di lapangan via Route Handler Service Role.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-blue-700 font-bold bg-blue-50 px-2.5 py-0.5 rounded-md">
-                Fase 2
-              </span>
-              <span>AUTH-04</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center mb-4">
-                <Truck className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Mitra & Distribusi
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Pencatatan penyaluran sampah terpilah ke pabrik daur ulang dan mitra pengepul resmi Palembang.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-purple-700 font-bold bg-purple-50 px-2.5 py-0.5 rounded-md">
-                Fase 2
-              </span>
-              <span>Mitra Pengepul</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-2xl border border-gray-200/90 shadow-sm flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-4">
-                <BarChart3 className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-base">
-                Dashboard Analitik
-              </h3>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Visualisasi tren berat sampah, nilai saldo terdistribusi, dan komposisi kategori anorganik.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
-              <span className="text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-md">
-                Fase 7
-              </span>
-              <span>Recharts</span>
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+      </Card>
+    </>
   );
 }
-

@@ -38,6 +38,14 @@ export type Report = {
   location: string;
   assigned: string;
   categoryWeights?: { category: string; estimate: number; conditions?: WasteCondition[] }[];
+  weighingPhotoDrafts?: Record<
+    string,
+    {
+      name: string;
+      type: string;
+      dataUrl: string;
+    }
+  >;
   trackerHistory?: { stage: TrackerStage; timestamp: string }[];
   verifiedItems?: {
     category: string;
@@ -46,6 +54,11 @@ export type Report = {
     actualWeight: number;
     verifiedCondition?: WasteCondition;
     verifiedConditions?: WasteCondition[];
+    weighingPhoto?: {
+      name: string;
+      type: string;
+      dataUrl: string;
+    };
     price: number;
     subtotal: number;
   }[];

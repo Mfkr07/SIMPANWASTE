@@ -43,39 +43,76 @@ export async function middleware(request: NextRequest) {
   const isAdminArea = pathname.startsWith("/admin");
 
   if (isWargaArea || isPetugasArea || isAdminArea) {
-    if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/login";
-      url.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(url);
+    // Periksa cookie frontend fallback
+    const roleCookie = request.cookies.get("simpanwaste_role")?.value;
+    const sessionCookie = request.cookies.get("simpanwaste_user_session")?.value;
+    let cookiePeran = roleCookie;
+    if (!cookiePeran && sessionCookie) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(sessionCookie));
+        cookiePeran = parsed.peran || parsed.role;
+      } catch {}
     }
 
-    // Ambil profil dari database untuk validasi peran
-    const { data: profil } = await supabase
-      .from("profil")
-      .select("peran")
-      .eq("id", user.id)
-      .single();
+    // Jika ada session Supabase
+    if (user) {
+      const { data: profil } = await supabase
+        .from("profil")
+        .select("peran")
+        .eq("id", user.id)
+        .single();
 
-    const peran = profil?.peran;
+      const peran = profil?.peran || cookiePeran || "warga";
 
-    if (isWargaArea && peran !== "warga" && peran !== "admin") {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${peran}/dashboard`;
-      return NextResponse.redirect(url);
+      if (isWargaArea && peran !== "warga" && peran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${peran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      if (isPetugasArea && peran !== "petugas" && peran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${peran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      if (isAdminArea && peran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${peran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      return response;
     }
 
-    if (isPetugasArea && peran !== "petugas" && peran !== "admin") {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${peran}/dashboard`;
-      return NextResponse.redirect(url);
+    // Jika tidak ada user Supabase, periksa cookie fallback frontend
+    if (cookiePeran) {
+      if (isWargaArea && cookiePeran !== "warga" && cookiePeran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${cookiePeran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      if (isPetugasArea && cookiePeran !== "petugas" && cookiePeran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${cookiePeran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      if (isAdminArea && cookiePeran !== "admin") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${cookiePeran}/dashboard`;
+        return NextResponse.redirect(url);
+      }
+
+      return response;
     }
 
-    if (isAdminArea && peran !== "admin") {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${peran}/dashboard`;
-      return NextResponse.redirect(url);
-    }
+    // Tidak ada auth Supabase maupun cookie frontend -> redirect ke login
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(url);
   }
 
   return response;

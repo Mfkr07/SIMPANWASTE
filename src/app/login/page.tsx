@@ -22,14 +22,20 @@ function LoginForm() {
   const registered = searchParams.get("registered");
 
   const [role, setRole] = useState<RoleType>("warga");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("ayu.lestari");
+  const [password, setPassword] = useState("password123");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(
     registered ? "Akun warga berhasil dibuat! Silakan masuk dengan kredensial Anda." : null
   );
+
+  const roleDefaults: Record<RoleType, { user: string; pass: string }> = {
+    warga: { user: "ayu.lestari", pass: "password123" },
+    petugas: { user: "rizky.p", pass: "password123" },
+    admin: { user: "admin.simpan", pass: "password123" },
+  };
 
   const seedFallbackProfiles: Record<string, any> = {
     "ayu.lestari": {
@@ -64,6 +70,14 @@ function LoginForm() {
       alamat: "Jl. Rajawali, Ilir Timur II, Palembang",
       peran: "petugas",
     },
+    petugas: {
+      id: "seed-rizky",
+      nama: "Rizky Pratama",
+      username: "rizky.p",
+      no_hp: "0813 7781 2240",
+      alamat: "Jl. Rajawali, Ilir Timur II, Palembang",
+      peran: "petugas",
+    },
     "admin.simpan": {
       id: "seed-admin",
       nama: "Nadia Putri",
@@ -77,6 +91,8 @@ function LoginForm() {
   const handleRoleChange = (newRole: RoleType) => {
     setRole(newRole);
     setErrorMessage(null);
+    setUsername(roleDefaults[newRole].user);
+    setPassword(roleDefaults[newRole].pass);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -108,11 +124,15 @@ function LoginForm() {
       const data = await res.json();
 
       if (res.ok && data.user) {
-        // Simpan sesi kredensial aktif ke localStorage secara instan tanpa jeda
+        // Simpan sesi kredensial aktif ke localStorage & cookie secara instan
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("simpanwaste_user_session", JSON.stringify(data.user));
             localStorage.setItem("simpanwaste_active_user", data.user.username);
+            document.cookie = `simpanwaste_role=${data.user.peran}; path=/; max-age=604800; SameSite=Lax`;
+            document.cookie = `simpanwaste_user_session=${encodeURIComponent(
+              JSON.stringify(data.user)
+            )}; path=/; max-age=604800; SameSite=Lax`;
           } catch {}
         }
 
@@ -121,12 +141,15 @@ function LoginForm() {
         setTimeout(() => {
           router.push(targetDestination);
           router.refresh();
-        }, 450);
+        }, 350);
         return;
       }
 
-      // Jika autentikasi server gagal, periksa fallback profil terdaftar / akun demo
-      let localMatch = seedFallbackProfiles[cleanUsername];
+      // Jika autentikasi server gagal, periksa fallback profil terdaftar / akun seed
+      let localMatch =
+        seedFallbackProfiles[cleanUsername] ||
+        (role === "petugas" ? seedFallbackProfiles["rizky.p"] : undefined);
+
       if (!localMatch && typeof window !== "undefined") {
         try {
           const regList = JSON.parse(localStorage.getItem("simpanwaste_registered_users") || "[]");
@@ -141,6 +164,10 @@ function LoginForm() {
           try {
             localStorage.setItem("simpanwaste_user_session", JSON.stringify(localMatch));
             localStorage.setItem("simpanwaste_active_user", localMatch.username);
+            document.cookie = `simpanwaste_role=${localMatch.peran}; path=/; max-age=604800; SameSite=Lax`;
+            document.cookie = `simpanwaste_user_session=${encodeURIComponent(
+              JSON.stringify(localMatch)
+            )}; path=/; max-age=604800; SameSite=Lax`;
           } catch {}
         }
         setSuccessMessage("Login berhasil! Mengalihkan ke dashboard...");
@@ -148,7 +175,7 @@ function LoginForm() {
         setTimeout(() => {
           router.push(fallbackDestination);
           router.refresh();
-        }, 450);
+        }, 350);
         return;
       }
 

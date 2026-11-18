@@ -6,14 +6,22 @@ export async function POST() {
     const supabase = await createClient();
     await supabase.auth.signOut();
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Logout berhasil",
     });
+
+    response.cookies.delete("simpanwaste_role");
+    response.cookies.delete("simpanwaste_user_session");
+
+    return response;
   } catch (err: any) {
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: err.message || "Gagal melakukan logout" },
       { status: 500 }
     );
+    response.cookies.delete("simpanwaste_role");
+    response.cookies.delete("simpanwaste_user_session");
+    return response;
   }
 }

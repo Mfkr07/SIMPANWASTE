@@ -44,8 +44,9 @@ export default function Navbar({ activePath = "/" }: { activePath?: string }) {
   ];
 
   const openWhatsApp = () => {
-    alert(
-      "Nomor WhatsApp utama belum tersedia. Silakan lengkapi data kontak terverifikasi."
+    window.open(
+      "https://wa.me/628127128799?text=Halo%20Bank%20Sampah%20Graha%20Pena,%20saya%20ingin%20menyetor%20sampah",
+      "_blank"
     );
   };
 

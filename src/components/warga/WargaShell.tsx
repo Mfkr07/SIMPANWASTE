@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, useRef, useEffect, ReactNode, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,8 +17,8 @@ import {
   X,
   Menu,
   Bell,
-  ChevronDown,
   CheckCircle2,
+  ChevronDown,
 } from "lucide-react";
 import { Logo } from "./WargaUI";
 import { useWarga } from "@/context/WargaContext";
@@ -37,16 +37,64 @@ const navItems = [
 export default function WargaShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { citizenProfile, toast, handleLogout } = useWarga();
+  const [headerPopover, setHeaderPopover] = useState<"notifications" | "profile" | null>(null);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
 
-  const currentNavItem = navItems.find((item) => pathname.startsWith(item.href)) || navItems[0];
+  const { citizenProfile, reports, toast, handleLogout } = useWarga();
+
+  const currentNavItem =
+    navItems.find((item) => pathname.startsWith(item.href)) || navItems[0];
 
   const initials = citizenProfile.name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+    ? citizenProfile.name
+        .split(" ")
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "W";
+
+  // Close popover on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (headerActionsRef.current && !headerActionsRef.current.contains(e.target as Node)) {
+        setHeaderPopover(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Notifications calculation based on citizen's reports
+  const notifications = useMemo(() => {
+    const relevantReports = reports.filter((r) => {
+      const c = (r.citizen || "").toLowerCase().trim();
+      const myName = (citizenProfile.name || "").toLowerCase().trim();
+      const myUser = (citizenProfile.username || "").toLowerCase().trim();
+      return Boolean((myName && c === myName) || (myUser && c === myUser));
+    });
+
+    return relevantReports.slice(0, 5).map((report) => {
+      const title =
+        report.status === "Selesai"
+          ? "Setoran Selesai & Terverifikasi"
+          : "Progres Setoran Diperbarui";
+      const message = `${report.id} · ${report.category} (${report.estimate} kg)`;
+      return {
+        id: `warga-${report.id}-${report.status}`,
+        title,
+        message,
+        time: report.date,
+        type: report.status === "Selesai" ? "success" : "update",
+      };
+    });
+  }, [citizenProfile.name, citizenProfile.username, reports]);
+
+  const unreadCount = notifications.filter(
+    (n) => !readNotificationIds.includes(n.id)
+  ).length;
 
   return (
     <div className="min-h-screen bg-[#f7f9f8] text-slate-800">
@@ -66,7 +114,7 @@ export default function WargaShell({ children }: { children: ReactNode }) {
         }`}
       >
         <div className="flex items-center justify-between px-2">
-          <Link href="/warga/dashboard">
+          <Link href="/warga/dashboard" onClick={() => setSidebarOpen(false)}>
             <Logo />
           </Link>
           <button
@@ -85,7 +133,7 @@ export default function WargaShell({ children }: { children: ReactNode }) {
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-900">{citizenProfile.name}</p>
-              <p className="text-xs font-medium text-green-700">Warga</p>
+              <p className="text-xs font-semibold text-green-700">Warga Nasabah</p>
             </div>
           </div>
         </div>
@@ -93,7 +141,9 @@ export default function WargaShell({ children }: { children: ReactNode }) {
         {/* Navigation Items */}
         <nav className="mt-5 flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href === "/warga/dashboard" && pathname === "/warga");
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/warga/dashboard" && pathname === "/warga");
             const Icon = item.icon;
             return (
               <Link
@@ -145,24 +195,140 @@ export default function WargaShell({ children }: { children: ReactNode }) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              aria-label="Notifikasi"
-              className="relative rounded-xl p-2.5 text-slate-500 hover:bg-slate-100 cursor-pointer"
-            >
-              <Bell size={20} />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-white bg-red-500" />
-            </button>
+          <div ref={headerActionsRef} className="relative flex items-center gap-2">
+            {/* Notification Bell Button & Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Buka notifikasi"
+                onClick={() =>
+                  setHeaderPopover((cur) => (cur === "notifications" ? null : "notifications"))
+                }
+                className={`relative rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-100 cursor-pointer ${
+                  headerPopover === "notifications" ? "bg-slate-100 text-green-700" : ""
+                }`}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid min-h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[9px] font-extrabold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {headerPopover === "notifications" && (
+                <div className="absolute right-0 top-full z-50 mt-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900">Notifikasi</p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                        {unreadCount} belum dibaca
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={unreadCount === 0}
+                      onClick={() =>
+                        setReadNotificationIds(notifications.map((n) => n.id))
+                      }
+                      className="text-[11px] font-extrabold text-green-700 transition hover:text-green-900 disabled:cursor-default disabled:text-slate-300 cursor-pointer"
+                    >
+                      Tandai semua dibaca
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto p-2 divide-y divide-slate-100">
+                    {notifications.length > 0 ? (
+                      notifications.map((item) => {
+                        const unread = !readNotificationIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 rounded-xl transition ${
+                              unread ? "bg-green-50/60" : "hover:bg-slate-50"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                              {unread && (
+                                <span className="h-2 w-2 rounded-full bg-green-600 shrink-0 mt-1" />
+                              )}
+                            </div>
+                            <p className="mt-1 text-[11px] text-slate-600 leading-snug">
+                              {item.message}
+                            </p>
+                            <p className="mt-1.5 text-[10px] text-slate-400 font-medium">
+                              {item.time}
+                            </p>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="py-6 text-center text-xs text-slate-400">
+                        Tidak ada notifikasi baru.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="ml-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <Link
-              href="/warga/profil"
-              className="hidden items-center gap-2 sm:flex hover:opacity-80 transition"
-            >
-              <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-700">
-                {initials}
-              </div>
-              <ChevronDown size={16} className="text-slate-400" />
-            </Link>
+
+            {/* Profile Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setHeaderPopover((cur) => (cur === "profile" ? null : "profile"))
+                }
+                className="hidden items-center gap-2 rounded-xl p-1.5 transition hover:bg-slate-100 cursor-pointer sm:flex"
+              >
+                <div className="grid h-9 w-9 place-items-center rounded-full bg-green-700 text-xs font-extrabold text-white">
+                  {initials}
+                </div>
+                <div className="text-left">
+                  <p className="text-xs font-bold text-slate-800 leading-tight">
+                    {citizenProfile.name.split(" ")[0]}
+                  </p>
+                  <p className="text-[10px] text-slate-400">Warga</p>
+                </div>
+                <ChevronDown size={14} className="text-slate-400" />
+              </button>
+
+              {headerPopover === "profile" && (
+                <div className="absolute right-0 top-full z-50 mt-3 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150 p-2">
+                  <div className="p-2 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-900 truncate">
+                      {citizenProfile.name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {citizenProfile.phone}
+                    </p>
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    <Link
+                      href="/warga/profil"
+                      onClick={() => setHeaderPopover(null)}
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+                    >
+                      <UserRound size={15} className="text-slate-500" />
+                      <span>Profil Saya</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderPopover(null);
+                        handleLogout();
+                      }}
+                      className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer"
+                    >
+                      <LogOut size={15} />
+                      <span>Keluar</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -180,4 +346,3 @@ export default function WargaShell({ children }: { children: ReactNode }) {
     </div>
   );
 }
-

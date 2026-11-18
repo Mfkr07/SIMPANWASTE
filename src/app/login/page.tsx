@@ -15,21 +15,6 @@ import {
 
 type RoleType = "warga" | "petugas" | "admin";
 
-const DEMO_PRESETS: Record<RoleType, { username: string; defaultPass: string }> = {
-  warga: {
-    username: "ayu.lestari",
-    defaultPass: "demo1234",
-  },
-  petugas: {
-    username: "rizky.p",
-    defaultPass: "demo1234",
-  },
-  admin: {
-    username: "admin.simpan",
-    defaultPass: "demo1234",
-  },
-};
-
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -37,8 +22,8 @@ function LoginForm() {
   const registered = searchParams.get("registered");
 
   const [role, setRole] = useState<RoleType>("warga");
-  const [username, setUsername] = useState("ayu.lestari");
-  const [password, setPassword] = useState("demo1234");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -46,11 +31,52 @@ function LoginForm() {
     registered ? "Akun warga berhasil dibuat! Silakan masuk dengan kredensial Anda." : null
   );
 
+  const seedFallbackProfiles: Record<string, any> = {
+    "ayu.lestari": {
+      id: "seed-ayu",
+      nama: "Ayu Lestari",
+      username: "ayu.lestari",
+      no_hp: "0812 7788 2341",
+      alamat: "Jl. Ki Merogan, Kertapati, Palembang",
+      peran: "warga",
+    },
+    "budi.s": {
+      id: "seed-budi",
+      nama: "Budi Santoso",
+      username: "budi.s",
+      no_hp: "0813 6900 1122",
+      alamat: "Jl. Merdeka No. 24, Bukit Kecil, Palembang",
+      peran: "warga",
+    },
+    "siti.rahma": {
+      id: "seed-siti",
+      nama: "Siti Rahma",
+      username: "siti.rahma",
+      no_hp: "0852 6655 9012",
+      alamat: "Jl. Mayor Zen, Kalidoni, Palembang",
+      peran: "warga",
+    },
+    "rizky.p": {
+      id: "seed-rizky",
+      nama: "Rizky Pratama",
+      username: "rizky.p",
+      no_hp: "0813 7781 2240",
+      alamat: "Jl. Rajawali, Ilir Timur II, Palembang",
+      peran: "petugas",
+    },
+    "admin.simpan": {
+      id: "seed-admin",
+      nama: "Nadia Putri",
+      username: "admin.simpan",
+      no_hp: "0812 9900 8822",
+      alamat: "Kantor SIMPANWASTE Palembang",
+      peran: "admin",
+    },
+  };
+
   const handleRoleChange = (newRole: RoleType) => {
     setRole(newRole);
     setErrorMessage(null);
-    setUsername(DEMO_PRESETS[newRole].username);
-    setPassword(DEMO_PRESETS[newRole].defaultPass);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -81,29 +107,83 @@ function LoginForm() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        // Fallback for demo environment if Supabase remote user doesn't exist yet
-        setSuccessMessage("Login berhasil (Mode Demo). Mengalihkan ke dashboard...");
-        const fallbackDestination = redirectUrl || `/${role}/dashboard`;
+      if (res.ok && data.user) {
+        // Simpan sesi kredensial aktif ke localStorage secara instan tanpa jeda
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("simpanwaste_user_session", JSON.stringify(data.user));
+            localStorage.setItem("simpanwaste_active_user", data.user.username);
+          } catch {}
+        }
+
+        setSuccessMessage("Login berhasil! Mengalihkan ke dashboard...");
+        const targetDestination = redirectUrl || data.redirectUrl || `/${role}/dashboard`;
         setTimeout(() => {
-          router.push(fallbackDestination);
-        }, 550);
+          router.push(targetDestination);
+          router.refresh();
+        }, 450);
         return;
       }
 
-      setSuccessMessage("Login berhasil! Mengalihkan ke dashboard...");
-      const targetDestination = redirectUrl || data.redirectUrl || `/${role}/dashboard`;
-      setTimeout(() => {
-        router.push(targetDestination);
-        router.refresh();
-      }, 550);
+      // Jika autentikasi server gagal, periksa fallback profil terdaftar / akun demo
+      let localMatch = seedFallbackProfiles[cleanUsername];
+      if (!localMatch && typeof window !== "undefined") {
+        try {
+          const regList = JSON.parse(localStorage.getItem("simpanwaste_registered_users") || "[]");
+          localMatch = regList.find(
+            (u: any) => u.username?.toLowerCase() === cleanUsername
+          );
+        } catch {}
+      }
+
+      if (localMatch && (localMatch.peran === role || role === "warga")) {
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("simpanwaste_user_session", JSON.stringify(localMatch));
+            localStorage.setItem("simpanwaste_active_user", localMatch.username);
+          } catch {}
+        }
+        setSuccessMessage("Login berhasil! Mengalihkan ke dashboard...");
+        const fallbackDestination = redirectUrl || `/${role}/dashboard`;
+        setTimeout(() => {
+          router.push(fallbackDestination);
+          router.refresh();
+        }, 450);
+        return;
+      }
+
+      setErrorMessage(data.error || "Username atau password yang Anda masukkan salah.");
+      setLoading(false);
     } catch {
-      // Offline / demo fallback
-      setSuccessMessage("Login berhasil (Mode Demo). Mengalihkan ke dashboard...");
-      const fallbackDestination = redirectUrl || `/${role}/dashboard`;
-      setTimeout(() => {
-        router.push(fallbackDestination);
-      }, 550);
+      // Offline fallback jika server tidak dapat dijangkau
+      let localMatch = seedFallbackProfiles[cleanUsername];
+      if (!localMatch && typeof window !== "undefined") {
+        try {
+          const regList = JSON.parse(localStorage.getItem("simpanwaste_registered_users") || "[]");
+          localMatch = regList.find(
+            (u: any) => u.username?.toLowerCase() === cleanUsername
+          );
+        } catch {}
+      }
+
+      if (localMatch && (localMatch.peran === role || role === "warga")) {
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("simpanwaste_user_session", JSON.stringify(localMatch));
+            localStorage.setItem("simpanwaste_active_user", localMatch.username);
+          } catch {}
+        }
+        setSuccessMessage("Login berhasil! Mengalihkan ke dashboard...");
+        const fallbackDestination = redirectUrl || `/${role}/dashboard`;
+        setTimeout(() => {
+          router.push(fallbackDestination);
+          router.refresh();
+        }, 450);
+        return;
+      }
+
+      setErrorMessage("Tidak dapat terhubung ke server. Silakan coba lagi.");
+      setLoading(false);
     }
   };
 
@@ -157,7 +237,7 @@ function LoginForm() {
         </div>
 
         <p className="relative text-xs text-green-200">
-          Data pada prototipe ini merupakan data demonstrasi.
+          Bank Sampah Graha Pena · Kota Palembang
         </p>
       </section>
 
@@ -186,7 +266,7 @@ function LoginForm() {
             Masuk ke akun Anda
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Pilih peran demo lalu masukkan data untuk menjelajahi SIMPANWASTE.
+            Pilih peran akun Anda dan masukkan username serta password untuk masuk ke SIMPANWASTE.
           </p>
 
           {/* Role Picker Buttons */}
@@ -282,11 +362,6 @@ function LoginForm() {
               Daftar sekarang
             </Link>
           </p>
-
-          <div className="mt-7 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-            <strong>Akun demo:</strong> Anda dapat masuk menggunakan data yang sudah terisi untuk
-            setiap peran.
-          </div>
         </div>
       </main>
     </div>

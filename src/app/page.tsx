@@ -43,7 +43,7 @@ export default function HomePage() {
         {/* 3. Program Tabungan (Tabungan Sampah, Pendidikan, Kurban, Umroh) */}
         <ProgramTabunganSection />
 
-        {/* 4. Gambaran Sistem (Statistik Demonstrasi) */}
+        {/* 4. Gambaran Sistem (Statistik Dampak) */}
         <StatsSection />
 
         {/* 5. Tentang SIMPANWASTE */}
@@ -55,7 +55,7 @@ export default function HomePage() {
         {/* 7. Alur Penyetoran (4 Langkah) */}
         <StepsSection />
 
-        {/* 8. Maps Bank Sampah Interaktif Palembang (Graha Pena & Referensi) */}
+        {/* 8. Maps Bank Sampah Interaktif Graha Pena Palembang */}
         <MapsPreviewSection />
 
         {/* 9. Bersama Untuk Lingkungan Banner (CTA Section) */}

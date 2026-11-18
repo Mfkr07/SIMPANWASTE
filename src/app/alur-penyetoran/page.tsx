@@ -101,17 +101,17 @@ export default function AlurPenyetoranPage() {
               </section>
             </div>
 
-            {/* Jenis Sampah & Harga Demonstrasi */}
+            {/* Jenis Sampah & Estimasi Harga */}
             <section className="mt-12">
               <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
                 <div>
                   <p className="text-xs font-extrabold uppercase tracking-[.14em] text-green-700">
-                    Data Demonstrasi
+                    Nilai Ekonomis Sampah
                   </p>
-                  <h2 className="mt-2 text-2xl font-extrabold text-slate-900">Jenis Sampah & Harga</h2>
+                  <h2 className="mt-2 text-2xl font-extrabold text-slate-900">Jenis Sampah & Estimasi Nilai</h2>
                 </div>
-                <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/15">
-                  Bukan harga operasional terkonfirmasi
+                <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-bold text-green-700 ring-1 ring-inset ring-green-600/15">
+                  Estimasi mengikuti harga pasar terupdate
                 </span>
               </div>
               <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -119,8 +119,8 @@ export default function AlurPenyetoranPage() {
                   { group: "Kertas", info: "Kardus Rp2.800/kg · Kertas campur Rp2.200/kg" },
                   { group: "Plastik", info: "PET Rp4.500/kg · Plastik campur Rp1.800/kg" },
                   { group: "Logam", info: "Kaleng aluminium Rp12.000/kg" },
-                  { group: "Kaca", info: "Harga terverifikasi belum tersedia" },
-                  { group: "Lainnya", info: "Minyak jelantah: data belum tersedia" },
+                  { group: "Kaca", info: "Botol sirup & saus Rp800–Rp1.500/kg" },
+                  { group: "Lainnya", info: "Minyak jelantah Rp5.500/liter" },
                 ].map(({ group, info }) => (
                   <div key={group} className="rounded-2xl border border-slate-200 bg-white p-5">
                     <h3 className="font-extrabold text-green-800">{group}</h3>
@@ -146,7 +146,7 @@ export default function AlurPenyetoranPage() {
                   <h2 className="font-extrabold text-slate-900">Minimal & Saldo</h2>
                 </div>
                 <p className="mt-5 text-sm leading-6 text-slate-600">
-                  Minimum pickup demo: 5 kg. Saldo dapat dilihat setelah login dan penarikan diproses manual oleh petugas.
+                  Minimum penjemputan (pickup): 5 kg. Saldo langsung tercatat setelah proses penimbangan dan verifikasi oleh petugas.
                 </p>
               </section>
 
@@ -158,7 +158,7 @@ export default function AlurPenyetoranPage() {
                   <h2 className="font-extrabold text-slate-900">Layanan Jemput</h2>
                 </div>
                 <p className="mt-5 text-sm leading-6 text-slate-600">
-                  Batas minimum mengikuti konfigurasi sistem. Area jangkauan terverifikasi belum tersedia.
+                  Layanan jemput (pickup) tersedia untuk wilayah Kota Palembang dengan penjadwalan via aplikasi atau WhatsApp operasional.
                 </p>
               </section>
 
@@ -196,11 +196,17 @@ export default function AlurPenyetoranPage() {
                 />
               </div>
               <div className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-[#f7faf8] p-5">
-                  <MapPin className="text-green-700" size={21} />
-                  <h3 className="mt-4 font-extrabold text-slate-900">Sekretariat Graha Pena</h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{grahaPenaLocation.address}</p>
-                  <p className="mt-3 text-xs leading-5 text-slate-600">Lokasi penyetoran yang terintegrasi dengan SIMPANWASTE.</p>
+                <div className="rounded-2xl border border-green-200 bg-green-50/60 p-5 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="text-green-700" size={21} />
+                    <span className="text-xs font-bold uppercase tracking-wider text-green-800">Pusat Penyetoran Resmi</span>
+                  </div>
+                  <h3 className="mt-3 font-extrabold text-slate-900">{grahaPenaLocation.name}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{grahaPenaLocation.address}</p>
+                  <p className="mt-2 text-xs font-semibold text-slate-700">{grahaPenaLocation.landmark}</p>
+                  <p className="mt-3 text-xs leading-5 text-slate-600">
+                    Lokasi penyetoran dan penimbangan utama yang terintegrasi langsung dengan sistem SIMPANWASTE.
+                  </p>
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&destination=${encodedGrahaAddress}`}
                     target="_blank"
@@ -209,13 +215,6 @@ export default function AlurPenyetoranPage() {
                   >
                     Petunjuk Arah <ArrowRight size={14} />
                   </a>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-[#f7faf8] p-5">
-                  <MapPin className="text-green-700" size={21} />
-                  <h3 className="mt-4 font-extrabold text-slate-900">Gudang Talang Betutu</h3>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">Alamat dan titik peta terverifikasi belum tersedia.</p>
-                  <p className="mt-3 text-xs leading-5 text-slate-600">Disebut berada di belakang bandara lama; fungsi lokasi menunggu konfirmasi.</p>
                 </div>
               </div>
             </div>

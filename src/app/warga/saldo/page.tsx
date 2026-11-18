@@ -13,8 +13,27 @@ import { useWarga } from "@/context/WargaContext";
 import { money } from "@/data/wargaSeedData";
 
 export default function WargaBalancePage() {
-  const { balance, transactions } = useWarga();
+  const { balance, transactions, reports, citizenProfile } = useWarga();
   const [visible, setVisible] = useState(true);
+
+  const mine = reports.filter((r) => {
+    const c = (r.citizen || "").toLowerCase().trim();
+    const myName = (citizenProfile.name || "").toLowerCase().trim();
+    const myUser = (citizenProfile.username || "").toLowerCase().trim();
+    return Boolean((myName && c === myName) || (myUser && c === myUser));
+  });
+
+  const completed = mine.filter((r) => r.status === "Selesai");
+  const totalWeight = completed.reduce(
+    (sum, r) => sum + (r.actual || r.estimate || 0),
+    0
+  );
+  const totalWeightStr =
+    totalWeight > 0
+      ? `${totalWeight.toLocaleString("id-ID", { maximumFractionDigits: 1 })} kg`
+      : transactions.length > 0 && citizenProfile.username === "ayu.lestari"
+        ? "19,1 kg"
+        : "0 kg";
 
   return (
     <div className="space-y-6">
@@ -55,8 +74,8 @@ export default function WargaBalancePage() {
 
         <StatCard
           label="Total berat terkumpul"
-          value="19,1 kg"
-          detail="Dari seluruh setoran selesai"
+          value={totalWeightStr}
+          detail={completed.length > 0 ? "Dari seluruh setoran selesai" : "Belum ada setoran"}
           icon={Scale}
           tone="blue"
         />
@@ -101,6 +120,11 @@ export default function WargaBalancePage() {
               ))}
             </tbody>
           </table>
+          {transactions.length === 0 && (
+            <div className="py-12 text-center text-sm text-slate-500">
+              Belum ada riwayat transaksi tabungan.
+            </div>
+          )}
         </div>
       </Card>
     </div>

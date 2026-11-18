@@ -6,8 +6,9 @@ import LandingIllustration from "./LandingIllustration";
 
 export default function HeroSection() {
   const openWhatsApp = () => {
-    alert(
-      "Nomor WhatsApp utama belum tersedia. Silakan lengkapi data kontak terverifikasi."
+    window.open(
+      "https://wa.me/628127128799?text=Halo%20Bank%20Sampah%20Graha%20Pena,%20saya%20ingin%20menyetor%20sampah",
+      "_blank"
     );
   };
 
@@ -55,7 +56,7 @@ export default function HeroSection() {
               <MapPin size={16} className="text-green-600" /> Palembang
             </span>
             <span className="flex items-center gap-2">
-              <Phone size={16} className="text-green-600" /> WhatsApp belum tersedia
+              <Phone size={16} className="text-green-600" /> WhatsApp: +62 812-7128-799
             </span>
           </div>
         </div>

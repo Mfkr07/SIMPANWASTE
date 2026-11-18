@@ -48,9 +48,6 @@ export default function ProgramTabunganSection() {
               </div>
               <h3 className="mt-5 font-extrabold text-slate-900">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
-              <p className="mt-4 text-[10px] font-semibold text-amber-700">
-                Contoh nilai manfaat menunggu data terverifikasi.
-              </p>
             </div>
           ))}
         </div>

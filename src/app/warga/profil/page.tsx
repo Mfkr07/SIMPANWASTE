@@ -118,18 +118,21 @@ export default function WargaProfilePage() {
         <div className="absolute -bottom-28 left-[36%] h-60 w-60 rounded-full bg-green-300/10" />
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
-            <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-white bg-green-700 text-2xl font-extrabold text-white shadow-lg sm:h-24 sm:w-24 sm:text-3xl">
+            <div
+              suppressHydrationWarning
+              className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-white bg-green-700 text-2xl font-extrabold text-white shadow-lg sm:h-24 sm:w-24 sm:text-3xl"
+            >
               {initials}
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
-                  {citizenProfile.name}
+                <h1 suppressHydrationWarning className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">
+                  {citizenProfile.name || "Warga SIMPANWASTE"}
                 </h1>
                 <Badge tone="green">Warga</Badge>
               </div>
-              <p className="mt-2 text-sm font-semibold text-slate-600">
-                @{citizenProfile.username}
+              <p suppressHydrationWarning className="mt-2 text-sm font-semibold text-slate-600">
+                @{citizenProfile.username || "warga"}
               </p>
               <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-green-800">
                 <MapPin size={14} /> Palembang
@@ -305,7 +308,7 @@ export default function WargaProfilePage() {
                         <p className="text-[10px] font-extrabold uppercase tracking-[.11em] text-slate-400">
                           {item.label}
                         </p>
-                        <p className="mt-1.5 text-sm font-bold leading-6 text-slate-800">
+                        <p suppressHydrationWarning className="mt-1.5 text-sm font-bold leading-6 text-slate-800">
                           {item.value}
                         </p>
                       </div>

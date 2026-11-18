@@ -160,11 +160,16 @@ export default function WargaShell({ children }: { children: ReactNode }) {
             className="group block rounded-xl border border-green-100 bg-green-50/80 p-3 transition hover:bg-green-100/60"
           >
             <div className="flex items-center gap-3">
-              <div className="grid h-9 w-9 place-items-center rounded-full bg-green-700 text-sm font-extrabold text-white shrink-0 group-hover:bg-green-800 transition">
+              <div
+                suppressHydrationWarning
+                className="grid h-9 w-9 place-items-center rounded-full bg-green-700 text-sm font-extrabold text-white shrink-0 group-hover:bg-green-800 transition"
+              >
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-900">{citizenProfile.name || "Warga"}</p>
+                <p suppressHydrationWarning className="truncate text-sm font-bold text-slate-900">
+                  {citizenProfile.name || "Warga"}
+                </p>
                 <p className="text-xs font-semibold text-green-700">Warga Nasabah</p>
               </div>
             </div>
@@ -290,12 +295,15 @@ export default function WargaShell({ children }: { children: ReactNode }) {
                 }
                 className="hidden items-center gap-2 rounded-xl p-1.5 transition hover:bg-slate-100 cursor-pointer sm:flex"
               >
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-green-700 text-xs font-extrabold text-white">
+                <div
+                  suppressHydrationWarning
+                  className="grid h-9 w-9 place-items-center rounded-full bg-green-700 text-xs font-extrabold text-white"
+                >
                   {initials}
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold text-slate-800 leading-tight">
-                    {citizenProfile.name.split(" ")[0]}
+                  <p suppressHydrationWarning className="text-xs font-bold text-slate-800 leading-tight">
+                    {citizenProfile.name ? citizenProfile.name.split(" ")[0] : "Warga"}
                   </p>
                   <p className="text-[10px] text-slate-400">Warga</p>
                 </div>
@@ -305,11 +313,11 @@ export default function WargaShell({ children }: { children: ReactNode }) {
               {headerPopover === "profile" && (
                 <div className="absolute right-0 top-full z-50 mt-3 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl animate-in fade-in zoom-in-95 duration-150 p-2">
                   <div className="p-2 border-b border-slate-100">
-                    <p className="text-xs font-bold text-slate-900 truncate">
-                      {citizenProfile.name}
+                    <p suppressHydrationWarning className="text-xs font-bold text-slate-900 truncate">
+                      {citizenProfile.name || "Warga"}
                     </p>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                      {citizenProfile.phone}
+                    <p suppressHydrationWarning className="text-[11px] text-slate-500 truncate mt-0.5">
+                      {citizenProfile.phone || "-"}
                     </p>
                   </div>
                   <div className="mt-1 space-y-0.5">

@@ -150,38 +150,18 @@ function getInitialWithdrawalsForUser(username: string): WithdrawalRequest[] {
 export function WargaProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
-  // Instant synchronous initialization from localStorage (ZERO JEDA / NO FLASH)
-  const [citizenProfile, setCitizenProfileState] = useState<UserProfile>(() => {
-    const cached = readStoredUser();
-    return (
-      cached || {
-        name: "",
-        username: "",
-        phone: "",
-        address: "",
-      }
-    );
+  // Consistent initial state across SSR and initial client hydration
+  const [citizenProfile, setCitizenProfileState] = useState<UserProfile>({
+    name: "",
+    username: "",
+    phone: "",
+    address: "",
   });
 
-  const [balance, setBalanceState] = useState<number>(() => {
-    const cached = readStoredUser();
-    return cached ? getInitialBalanceForUser(cached.username) : 0;
-  });
-
-  const [reports, setReportsState] = useState<Report[]>(() => {
-    const cached = readStoredUser();
-    return cached ? getInitialReportsForUser(cached.username, cached.name) : [];
-  });
-
-  const [transactions, setTransactionsState] = useState<typeof transactionsSeed>(() => {
-    const cached = readStoredUser();
-    return cached ? getInitialTransactionsForUser(cached.username) : [];
-  });
-
-  const [withdrawalRequests, setWithdrawalRequestsState] = useState<WithdrawalRequest[]>(() => {
-    const cached = readStoredUser();
-    return cached ? getInitialWithdrawalsForUser(cached.username) : [];
-  });
+  const [balance, setBalanceState] = useState<number>(0);
+  const [reports, setReportsState] = useState<Report[]>([]);
+  const [transactions, setTransactionsState] = useState<typeof transactionsSeed>([]);
+  const [withdrawalRequests, setWithdrawalRequestsState] = useState<WithdrawalRequest[]>([]);
 
   const [categories] = useState(categoriesSeed);
   const [minPickup] = useState(5);

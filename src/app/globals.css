@@ -38,43 +38,82 @@
     color: #64748b;
     cursor: not-allowed;
   }
+  select.input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.85rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem 1.25rem;
+    padding-right: 2.75rem;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  select.input:focus {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2316a34a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  }
 
   .table-wrap {
     margin-top: 1.25rem;
     width: 100%;
     overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.875rem;
+    background: #ffffff;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  }
+  .table-wrap::-webkit-scrollbar {
+    height: 8px;
+  }
+  .table-wrap::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  .table-wrap::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  .table-wrap::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
   }
   .table-wrap table {
     width: 100%;
-    min-width: 760px;
+    min-width: 900px;
     border-collapse: collapse;
     text-align: left;
   }
   .table-wrap th {
-    border-bottom: 1px solid #e2e8f0;
-    padding: 0.75rem 1rem;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 0.85rem 1rem;
     background: #f8fafc;
-    color: #64748b;
-    font-size: 0.7rem;
+    color: #475569;
+    font-size: 0.72rem;
     font-weight: 800;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
+    white-space: nowrap;
   }
   .table-wrap th:first-child {
-    border-radius: 0.75rem 0 0 0.75rem;
+    border-top-left-radius: 0.875rem;
   }
   .table-wrap th:last-child {
-    border-radius: 0 0.75rem 0.75rem 0;
+    border-top-right-radius: 0.875rem;
   }
   .table-wrap td {
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
     padding: 0.95rem 1rem;
-    color: #475569;
-    font-size: 0.8rem;
-    white-space: nowrap;
+    color: #334155;
+    font-size: 0.85rem;
+    vertical-align: middle;
   }
   .table-wrap tr:last-child td {
     border-bottom: none;
+  }
+  .table-wrap tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .table-wrap tbody tr:hover {
+    background-color: #f8fafc;
   }
 }
 

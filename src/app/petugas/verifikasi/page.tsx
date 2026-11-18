@@ -18,6 +18,7 @@ import {
   Badge,
   Field,
   Empty,
+  StatusDropdown,
 } from "@/components/petugas/PetugasUI";
 import { usePetugas } from "@/context/PetugasContext";
 import {
@@ -133,9 +134,12 @@ function VerificationContent() {
       const savedItem = report.verifiedItems?.[index];
 
       nextWeights[itemKey] = savedItem?.actualWeight ?? item.estimate;
-      nextConditions[itemKey] =
-        savedItem?.verifiedConditions ||
-        (savedItem?.verifiedCondition ? [savedItem.verifiedCondition] : ["Sudah dipilah"]);
+      const initialConds = savedItem?.verifiedConditions?.length
+        ? [savedItem.verifiedConditions[0]]
+        : savedItem?.verifiedCondition
+        ? [savedItem.verifiedCondition]
+        : ["Sudah dipilah"];
+      nextConditions[itemKey] = initialConds as WasteCondition[];
       if (savedItem?.weighingPhoto) {
         nextPhotos[itemKey] = savedItem.weighingPhoto;
       }
@@ -191,19 +195,15 @@ function VerificationContent() {
         item.weighingPhoto
     );
 
-  const toggleVerifiedCondition = (itemKey: string, condition: WasteCondition) => {
+  const selectVerifiedCondition = (itemKey: string, condition: WasteCondition) => {
     if (!report || !isReady || report.status === "Selesai") return;
     setVerifiedConditions((prev) => {
       const reportConds = prev[report.id] || {};
-      const selected = reportConds[itemKey] || [];
-      const updated = selected.includes(condition)
-        ? selected.filter((c) => c !== condition)
-        : [...selected, condition];
       return {
         ...prev,
         [report.id]: {
           ...reportConds,
-          [itemKey]: updated.length > 0 ? updated : [condition],
+          [itemKey]: [condition], // Hanya boleh memilih salah satu dari 4 pilihan
         },
       };
     });
@@ -328,17 +328,13 @@ function VerificationContent() {
                 placeholder="Cari ID atau nama warga..."
               />
             </div>
-            <select
-              className="input py-2.5 text-sm cursor-pointer"
+            <StatusDropdown
               value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as "Semua" | Report["status"])
+              onChange={(val) =>
+                setStatusFilter(val as "Semua" | Report["status"])
               }
-            >
-              <option value="Semua">Semua Status</option>
-              <option value="Menunggu">Menunggu</option>
-              <option value="Selesai">Selesai</option>
-            </select>
+              className="w-full"
+            />
           </div>
 
           <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
@@ -448,7 +444,7 @@ function VerificationContent() {
                       key={`${item.category}-${index}`}
                       className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5"
                     >
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row">
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                         <div>
                           <p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-green-700">
                             Kategori {index + 1}
@@ -460,19 +456,19 @@ function VerificationContent() {
                             Estimasi Warga: <strong>{item.estimate} kg</strong>
                           </p>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 sm:max-w-[55%] sm:justify-end">
+                        <div className="flex flex-wrap items-center content-start gap-1.5 self-start sm:max-w-[55%] sm:justify-end">
                           {(item.conditions?.length ? item.conditions : []).map(
                             (condition) => (
                               <span
                                 key={condition}
-                                className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-800"
+                                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 leading-normal whitespace-nowrap shadow-xs"
                               >
                                 {condition}
                               </span>
                             )
                           )}
                           {!item.conditions?.length && (
-                            <span className="text-[10px] font-semibold text-slate-400">
+                            <span className="text-[11px] font-semibold text-slate-400 py-1">
                               Kondisi awal tidak tersedia
                             </span>
                           )}
@@ -507,16 +503,23 @@ function VerificationContent() {
                         </Field>
 
                         <div>
-                          <p className="mb-2 text-sm font-semibold text-slate-700">
-                            Kondisi terverifikasi
-                          </p>
+                          <div className="mb-2 flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-700">
+                              Kondisi terverifikasi
+                            </p>
+                            {!readOnly && (
+                              <span className="text-[11px] font-medium text-slate-400">
+                                (Pilih salah satu)
+                              </span>
+                            )}
+                          </div>
                           {readOnly ? (
                             <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
                               {savedConditions.length ? (
                                 savedConditions.map((condition) => (
                                   <span
                                     key={condition}
-                                    className="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-700 border border-slate-200"
+                                    className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-200 leading-normal whitespace-nowrap shadow-xs"
                                   >
                                     {condition}
                                   </span>
@@ -549,9 +552,9 @@ function VerificationContent() {
                                       disabled={!isReady}
                                       checked={selected}
                                       onChange={() =>
-                                        toggleVerifiedCondition(item.itemKey, condition)
+                                        selectVerifiedCondition(item.itemKey, condition)
                                       }
-                                      className="h-4 w-4 shrink-0 accent-green-700"
+                                      className="h-4 w-4 shrink-0 rounded accent-green-700 cursor-pointer"
                                     />
                                     <span>{condition}</span>
                                   </label>
@@ -559,9 +562,9 @@ function VerificationContent() {
                               })}
                             </div>
                           )}
-                          {!readOnly && item.verifiedConditions.length > 1 && (
+                          {!readOnly && (
                             <p className="mt-2 text-[10px] leading-4 text-slate-500">
-                              Harga terbaik dari kondisi yang dipilih otomatis digunakan untuk perhitungan.
+                              Harga per kilogram otomatis disesuaikan dengan kondisi sampah yang dipilih.
                             </p>
                           )}
                         </div>

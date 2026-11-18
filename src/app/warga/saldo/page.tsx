@@ -93,29 +93,42 @@ export default function WargaBalancePage() {
       <Card className="mt-6">
         <h2 className="font-extrabold text-slate-900">Riwayat transaksi</h2>
         <div className="table-wrap">
-          <table>
+          <table className="w-full min-w-[760px] border-collapse text-left">
             <thead>
-              <tr>
-                <th>Tanggal</th>
-                <th>Jenis</th>
-                <th>Berat</th>
-                <th>Nilai transaksi</th>
-                <th>Saldo</th>
+              <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+                <th className="w-[140px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Tanggal</th>
+                <th className="w-[130px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Jenis</th>
+                <th className="w-[110px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Berat</th>
+                <th className="w-[180px] px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Nilai Transaksi</th>
+                <th className="w-[180px] px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Saldo</th>
               </tr>
             </thead>
             <tbody>
               {transactions.map((t, i) => (
-                <tr key={i}>
-                  <td>{t.date}</td>
-                  <td>
+                <tr
+                  key={i}
+                  className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
+                >
+                  <td className="px-4 py-3.5 align-middle text-slate-600 whitespace-nowrap">
+                    {t.date}
+                  </td>
+                  <td className="px-4 py-3.5 align-middle text-center whitespace-nowrap">
                     <Badge tone={t.type === "Setoran" ? "green" : "amber"}>{t.type}</Badge>
                   </td>
-                  <td>{t.weight}</td>
-                  <td className={`font-bold ${t.value > 0 ? "text-green-700" : "text-red-600"}`}>
+                  <td className="px-4 py-3.5 align-middle text-center font-medium text-slate-700 whitespace-nowrap">
+                    {t.weight}
+                  </td>
+                  <td
+                    className={`px-4 py-3.5 align-middle text-right font-bold whitespace-nowrap ${
+                      t.value > 0 ? "text-green-700" : "text-red-600"
+                    }`}
+                  >
                     {t.value > 0 ? "+" : ""}
                     {money(t.value)}
                   </td>
-                  <td className="font-extrabold">{money(i === 0 ? balance : t.balance)}</td>
+                  <td className="px-4 py-3.5 align-middle text-right font-extrabold text-slate-900 whitespace-nowrap">
+                    {money(i === 0 ? balance : t.balance)}
+                  </td>
                 </tr>
               ))}
             </tbody>

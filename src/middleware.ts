@@ -53,6 +53,9 @@ export async function middleware(request: NextRequest) {
         cookiePeran = parsed.peran || parsed.role;
       } catch {}
     }
+    if (cookiePeran) {
+      cookiePeran = cookiePeran.toLowerCase();
+    }
 
     // Jika ada session Supabase
     if (user) {

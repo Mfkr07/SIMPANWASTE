@@ -8,6 +8,7 @@ import {
   Card,
   Button,
   Badge,
+  StatusDropdown,
 } from "@/components/petugas/PetugasUI";
 import { usePetugas } from "@/context/PetugasContext";
 
@@ -77,29 +78,25 @@ export default function PetugasTugasPage() {
               placeholder="Cari ID, nama warga, atau alamat..."
             />
           </div>
-          <select
+          <StatusDropdown
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="input sm:w-48 cursor-pointer"
-          >
-            <option value="Semua">Semua Status</option>
-            <option value="Menunggu">Menunggu</option>
-            <option value="Selesai">Selesai</option>
-          </select>
+            onChange={setStatus}
+            className="sm:w-52"
+          />
         </div>
 
         <div className="table-wrap">
-          <table>
+          <table className="w-full min-w-[1260px] border-collapse text-left">
             <thead>
-              <tr>
-                <th>ID Laporan</th>
-                <th>Warga</th>
-                <th>Lokasi</th>
-                <th>Kategori</th>
-                <th>Berat Estimasi</th>
-                <th>Status Laporan</th>
-                <th>Status Tugas</th>
-                <th>Aksi</th>
+              <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+                <th className="w-[130px] min-w-[130px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
+                <th className="w-[180px] min-w-[180px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+                <th className="w-[260px] min-w-[240px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Lokasi</th>
+                <th className="w-[240px] min-w-[220px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
+                <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Berat Estimasi</th>
+                <th className="w-[140px] min-w-[130px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Laporan</th>
+                <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Tugas</th>
+                <th className="w-[170px] min-w-[160px] px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -112,23 +109,36 @@ export default function PetugasTugasPage() {
                   ) || false;
 
                 return (
-                  <tr key={report.id}>
-                    <td className="font-bold text-green-700">{report.id}</td>
-                    <td>
+                  <tr
+                    key={report.id}
+                    className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
+                  >
+                    <td className="w-[130px] min-w-[130px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
+                      {report.id}
+                    </td>
+                    <td className="w-[180px] min-w-[180px] px-4 py-3.5 align-middle">
                       <p className="font-semibold text-slate-800">{report.citizen}</p>
                       <p className="text-xs text-slate-400">{report.phone}</p>
                     </td>
-                    <td className="max-w-56 whitespace-normal leading-5 text-slate-600">
-                      {report.location}
+                    <td className="w-[260px] min-w-[240px] max-w-[280px] px-4 py-3.5 align-middle">
+                      <div className="text-sm leading-relaxed text-slate-600 break-words whitespace-normal">
+                        {report.location}
+                      </div>
                     </td>
-                    <td className="max-w-44 whitespace-normal">{report.category}</td>
-                    <td className="font-bold text-slate-900">{report.estimate} kg</td>
-                    <td>
+                    <td className="w-[240px] min-w-[220px] max-w-[260px] px-4 py-3.5 align-middle">
+                      <div className="text-sm font-medium leading-relaxed text-slate-800 break-words whitespace-normal">
+                        {report.category}
+                      </div>
+                    </td>
+                    <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                      <span className="font-bold text-slate-900">{report.estimate} kg</span>
+                    </td>
+                    <td className="w-[140px] min-w-[130px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
                       <Badge tone={report.status === "Selesai" ? "green" : "amber"}>
                         {report.status}
                       </Badge>
                     </td>
-                    <td>
+                    <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
                       {report.status === "Selesai" ? (
                         <Badge tone="green">Tugas selesai</Badge>
                       ) : needsPickup ? (
@@ -151,7 +161,7 @@ export default function PetugasTugasPage() {
                         <Badge tone="blue">Drop-off diterima</Badge>
                       )}
                     </td>
-                    <td>
+                    <td className="w-[170px] min-w-[160px] px-4 py-3.5 align-middle text-right whitespace-nowrap">
                       {report.status === "Selesai" ? (
                         <span className="text-xs font-semibold text-slate-400">
                           Selesai

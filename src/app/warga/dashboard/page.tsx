@@ -82,7 +82,7 @@ export default function WargaDashboardPage() {
       <div className="rounded-2xl bg-green-800 p-6 text-white sm:flex sm:items-center sm:justify-between sm:p-8">
         <div>
           <p className="text-sm font-semibold text-green-200">{today}</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
+          <h1 suppressHydrationWarning className="mt-2 text-3xl font-extrabold tracking-tight">
             Selamat datang, {firstName}
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-green-100">

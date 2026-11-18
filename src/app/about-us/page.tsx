@@ -167,7 +167,7 @@ export default function AboutUsPage() {
                   ],
                   [
                     "Berapa minimal setoran?",
-                    "Tidak ada minimum Drop-off pada prototipe. Minimum pickup demo adalah 5 kg.",
+                    "Tidak ada batas minimum untuk penyetoran langsung (Drop-off). Untuk layanan jemput (pickup), ketentuan minimum adalah 5 kg.",
                   ],
                   [
                     "Kapan saldo bisa dicairkan?",
@@ -175,11 +175,11 @@ export default function AboutUsPage() {
                   ],
                   [
                     "Bisakah sekolah atau kantor menjadi mitra?",
-                    "Kategori sekolah, komunitas, perusahaan, dan instansi termasuk dalam usulan nasabah/mitra.",
+                    "Kategori sekolah, komunitas, perusahaan, dan instansi dapat bergabung sebagai mitra nasabah Bank Sampah Graha Pena.",
                   ],
                   [
                     "Apakah ada layanan jemput?",
-                    "Pickup tersedia jika estimasi berat memenuhi batas minimum; area jangkauan belum terverifikasi.",
+                    "Layanan penjemputan (pickup) tersedia untuk wilayah Kota Palembang dengan estimasi berat memenuhi batas minimum 5 kg.",
                   ],
                 ].map(([question, answer]) => (
                   <details

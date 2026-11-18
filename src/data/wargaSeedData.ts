@@ -7,6 +7,25 @@ import {
 
 export type Role = "warga" | "petugas" | "admin";
 
+export type WasteCondition =
+  | "Sudah dipilah"
+  | "Sudah dibersihkan"
+  | "Tidak mudah didaur ulang"
+  | "Belum dipilah dan dibersihkan";
+
+export const wasteConditions: WasteCondition[] = [
+  "Sudah dipilah",
+  "Sudah dibersihkan",
+  "Tidak mudah didaur ulang",
+  "Belum dipilah dan dibersihkan",
+];
+
+export type TrackerStage =
+  | "Request Terkirim"
+  | "Petugas dalam Perjalanan"
+  | "Petugas Memverifikasi"
+  | "Poin Saldo Didapatkan";
+
 export type Report = {
   id: string;
   citizen: string;
@@ -18,9 +37,28 @@ export type Report = {
   date: string;
   location: string;
   assigned: string;
+  categoryWeights?: { category: string; estimate: number; conditions?: WasteCondition[] }[];
+  trackerHistory?: { stage: TrackerStage; timestamp: string }[];
+  verifiedItems?: {
+    category: string;
+    estimatedWeight: number;
+    citizenConditions: WasteCondition[];
+    actualWeight: number;
+    verifiedCondition?: WasteCondition;
+    verifiedConditions?: WasteCondition[];
+    price: number;
+    subtotal: number;
+  }[];
   actual?: number;
   value?: number;
 };
+
+export const trackerTimestamp = () =>
+  new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date()) + " WIB";
 
 export type UserProfile = {
   name: string;
@@ -42,35 +80,103 @@ export const categoriesSeed = [
     desc: "Botol minuman bening, bersih dan kering",
     clean: 4500,
     dirty: 2800,
+    prices: {
+      "Sudah dipilah": 4500,
+      "Sudah dibersihkan": 4500,
+      "Tidak mudah didaur ulang": 2800,
+      "Belum dipilah dan dibersihkan": 2800,
+    } as Record<WasteCondition, number>,
   },
-  { name: "Kardus", desc: "Kardus kering tanpa lapisan minyak", clean: 2800, dirty: 1500 },
+  {
+    name: "Kardus",
+    desc: "Kardus kering tanpa lapisan minyak",
+    clean: 2800,
+    dirty: 1500,
+    prices: {
+      "Sudah dipilah": 2800,
+      "Sudah dibersihkan": 2800,
+      "Tidak mudah didaur ulang": 1500,
+      "Belum dipilah dan dibersihkan": 1500,
+    } as Record<WasteCondition, number>,
+  },
   {
     name: "Kaleng Aluminium",
     desc: "Kaleng minuman dan kemasan aluminium",
     clean: 12000,
     dirty: 8500,
+    prices: {
+      "Sudah dipilah": 12000,
+      "Sudah dibersihkan": 12000,
+      "Tidak mudah didaur ulang": 8500,
+      "Belum dipilah dan dibersihkan": 8500,
+    } as Record<WasteCondition, number>,
   },
-  { name: "Kertas Campur", desc: "Kertas HVS, koran, dan majalah", clean: 2200, dirty: 1200 },
+  {
+    name: "Kertas Campur",
+    desc: "Kertas HVS, koran, dan majalah",
+    clean: 2200,
+    dirty: 1200,
+    prices: {
+      "Sudah dipilah": 2200,
+      "Sudah dibersihkan": 2200,
+      "Tidak mudah didaur ulang": 1200,
+      "Belum dipilah dan dibersihkan": 1200,
+    } as Record<WasteCondition, number>,
+  },
   {
     name: "Plastik Campur",
     desc: "Kemasan plastik non-B3 yang sudah dipilah",
     clean: 1800,
     dirty: 900,
+    prices: {
+      "Sudah dipilah": 1800,
+      "Sudah dibersihkan": 1800,
+      "Tidak mudah didaur ulang": 900,
+      "Belum dipilah dan dibersihkan": 900,
+    } as Record<WasteCondition, number>,
   },
 ];
 
 export const initialReports: Report[] = [
   {
+    id: "SW-250319-025",
+    citizen: "Ayu Lestari",
+    phone: "0812 7788 2341",
+    category: "Botol Plastik PET, Kardus",
+    estimate: 5,
+    method: "Pickup",
+    status: "Menunggu",
+    date: "19 Mar 2025",
+    location: "Jl. Ki Merogan, Kertapati",
+    assigned: "Rizky Pratama",
+    categoryWeights: [
+      { category: "Botol Plastik PET", estimate: 3, conditions: ["Sudah dipilah"] },
+      { category: "Kardus", estimate: 2, conditions: ["Sudah dibersihkan"] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "19 Mar 2025, 08:30 WIB" },
+      { stage: "Petugas dalam Perjalanan", timestamp: "19 Mar 2025, 09:15 WIB" },
+    ],
+  },
+  {
     id: "SW-250318-024",
     citizen: "Ayu Lestari",
     phone: "0812 7788 2341",
-    category: "Botol Plastik PET",
+    category: "Botol Plastik PET, Kardus, Kaleng Aluminium",
     estimate: 8,
     method: "Pickup",
     status: "Menunggu",
     date: "18 Mar 2025",
     location: "Jl. Ki Merogan, Kertapati",
     assigned: "Rizky Pratama",
+    categoryWeights: [
+      { category: "Botol Plastik PET", estimate: 3, conditions: ["Sudah dipilah"] },
+      { category: "Kardus", estimate: 2, conditions: ["Sudah dipilah"] },
+      { category: "Kaleng Aluminium", estimate: 3, conditions: ["Sudah dibersihkan"] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "18 Mar 2025, 10:00 WIB" },
+    ],
   },
   {
     id: "SW-250316-019",
@@ -81,8 +187,14 @@ export const initialReports: Report[] = [
     method: "Drop-off",
     status: "Menunggu",
     date: "16 Mar 2025",
-    location: "Bank Sampah Sejahtera",
+    location: "Bank Sampah Graha Pena Palembang",
     assigned: "Rizky Pratama",
+    categoryWeights: [
+      { category: "Kardus", estimate: 4, conditions: ["Sudah dipilah"] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "16 Mar 2025, 14:10 WIB" },
+    ],
   },
   {
     id: "SW-250312-011",
@@ -93,10 +205,18 @@ export const initialReports: Report[] = [
     method: "Drop-off",
     status: "Selesai",
     date: "12 Mar 2025",
-    location: "Bank Sampah Melati",
+    location: "Bank Sampah Graha Pena Palembang",
     assigned: "Rizky Pratama",
     actual: 3.2,
     value: 38400,
+    categoryWeights: [
+      { category: "Kaleng Aluminium", estimate: 3.5, conditions: ["Sudah dibersihkan"] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "12 Mar 2025, 09:00 WIB" },
+      { stage: "Petugas Memverifikasi", timestamp: "12 Mar 2025, 10:20 WIB" },
+      { stage: "Poin Saldo Didapatkan", timestamp: "12 Mar 2025, 11:00 WIB" },
+    ],
   },
   {
     id: "SW-250308-006",
@@ -111,6 +231,56 @@ export const initialReports: Report[] = [
     assigned: "Dedi Irawan",
     actual: 6.4,
     value: 14080,
+    categoryWeights: [
+      { category: "Kertas Campur", estimate: 7, conditions: ["Sudah dipilah"] },
+    ],
+    trackerHistory: [
+      { stage: "Request Terkirim", timestamp: "8 Mar 2025, 08:00 WIB" },
+      { stage: "Petugas dalam Perjalanan", timestamp: "8 Mar 2025, 08:45 WIB" },
+      { stage: "Petugas Memverifikasi", timestamp: "8 Mar 2025, 09:30 WIB" },
+      { stage: "Poin Saldo Didapatkan", timestamp: "8 Mar 2025, 10:15 WIB" },
+    ],
+  },
+];
+
+export type WithdrawalRequest = {
+  id: string;
+  citizenId: string;
+  citizenName: string;
+  type: "Penarikan manual" | "Potong iuran bulanan";
+  amount: number;
+  description: string;
+  submittedDate: string;
+  status: "Menunggu" | "Selesai";
+  processedDate?: string;
+  processedBy?: string;
+  proof?: {
+    name: string;
+    type: string;
+    dataUrl: string;
+  };
+};
+
+export const withdrawalRequestsSeed: WithdrawalRequest[] = [
+  {
+    id: "WD-018",
+    citizenId: "ayu.lestari",
+    citizenName: "Ayu Lestari",
+    type: "Penarikan manual",
+    amount: 75000,
+    description: "Ambil tunai di Bank Sampah Graha Pena",
+    submittedDate: "18 Mar 2025",
+    status: "Menunggu",
+  },
+  {
+    id: "WD-017",
+    citizenId: "siti.rahma",
+    citizenName: "Siti Rahma",
+    type: "Potong iuran bulanan",
+    amount: 25000,
+    description: "Iuran sampah bulan Maret",
+    submittedDate: "17 Mar 2025",
+    status: "Menunggu",
   },
 ];
 

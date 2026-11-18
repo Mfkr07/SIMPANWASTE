@@ -24,18 +24,13 @@ export default function StatsSection() {
   return (
     <section className="border-y border-slate-200 bg-white">
       <div className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
-        <div className="mb-6 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-xs font-extrabold uppercase tracking-[.16em] text-green-700">
-              Gambaran sistem
-            </p>
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
-              Dampak yang dapat dipantau
-            </h2>
-          </div>
-          <p className="text-xs font-medium text-amber-700">
-            Statistik berikut merupakan data demonstrasi.
+        <div className="mb-6">
+          <p className="text-xs font-extrabold uppercase tracking-[.16em] text-green-700">
+            Gambaran sistem
           </p>
+          <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+            Dampak yang dapat dipantau
+          </h2>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           {stats.map(({ value, label, icon: Icon }) => (

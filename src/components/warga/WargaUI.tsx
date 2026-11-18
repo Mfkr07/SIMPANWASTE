@@ -195,10 +195,12 @@ export function Modal({
   title,
   onClose,
   children,
+  wide = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  wide?: boolean;
 }) {
   return (
     <div
@@ -207,7 +209,9 @@ export function Modal({
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150"
+        className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-150 ${
+          wide ? "max-w-2xl" : "max-w-lg"
+        }`}
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-lg font-extrabold text-slate-900">{title}</h2>

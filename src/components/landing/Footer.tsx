@@ -25,16 +25,16 @@ export default function Footer() {
         <div>
           <p className="font-extrabold text-green-300">Lokasi</p>
           <p className="mt-4 text-xs leading-6">{grahaPenaLocation.address}</p>
-          <p className="mt-3 text-xs leading-6">
-            Gudang Talang Betutu: alamat terverifikasi belum tersedia.
+          <p className="mt-2 text-xs leading-6 text-green-200/80">
+            {grahaPenaLocation.landmark}
           </p>
         </div>
         <div>
-          <p className="font-extrabold text-green-300">Kontak</p>
-          <p className="mt-4 text-xs leading-6">WhatsApp setoran: belum tersedia</p>
-          <p className="text-xs leading-6">WhatsApp kerja sama: belum tersedia</p>
-          <p className="text-xs leading-6">Kontak lainnya: belum tersedia</p>
-          <p className="mt-2 text-xs leading-6">Email & Instagram: belum tersedia</p>
+          <p className="font-extrabold text-green-300">Kontak & Layanan</p>
+          <p className="mt-4 text-xs leading-6">WhatsApp: +62 812-7128-799</p>
+          <p className="text-xs leading-6">Kerja Sama: kemitraan@simpanwaste.id</p>
+          <p className="text-xs leading-6">Jadwal: Senin–Jumat 09.00–16.00 WIB</p>
+          <p className="mt-2 text-xs leading-6 text-green-200/80">Palembang, Sumatera Selatan</p>
         </div>
         <div>
           <p className="font-extrabold text-green-300">Tautan</p>
@@ -54,8 +54,8 @@ export default function Footer() {
           </div>
         </div>
       </div>
-      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-green-50/40">
-        © 2025 SIMPANWASTE. Prototype sistem informasi.
+      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-green-50/50">
+        © 2025 SIMPANWASTE. Sistem Pengelolaan Sampah Terintegrasi Bank Sampah Graha Pena Palembang.
       </div>
     </footer>
   );

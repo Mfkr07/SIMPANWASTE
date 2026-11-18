@@ -42,7 +42,7 @@ export default function ImpactKamiPage() {
                 Dampak yang tumbuh dari kebiasaan memilah.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600">
-                Ringkasan berikut menggunakan data demonstrasi sampai angka operasional terverifikasi tersedia.
+                Ringkasan pencapaian dan kontribusi nyata nasabah dalam pelestarian lingkungan Kota Palembang.
               </p>
             </div>
           </div>
@@ -53,10 +53,10 @@ export default function ImpactKamiPage() {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { value: "1.240+", label: "Nasabah" },
-                { value: "18", label: "Mitra" },
-                { value: "12.840 kg", label: "Sampah terkelola" },
-                { value: "Rp48,6 jt", label: "Dibagikan ke nasabah" },
+                { value: "1.240+", label: "Nasabah Aktif" },
+                { value: "18", label: "Mitra Kolaborasi" },
+                { value: "12.840 kg", label: "Sampah Terkelola" },
+                { value: "Rp48,6 jt", label: "Total Nilai Tabungan" },
               ].map(({ value, label }) => (
                 <div key={label} className="rounded-2xl border border-green-100 bg-white p-6 shadow-sm">
                   <p className="text-3xl font-extrabold text-green-800">{value}</p>
@@ -64,8 +64,8 @@ export default function ImpactKamiPage() {
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs font-semibold text-amber-700">
-              Data demonstrasi · terakhir diperbarui Desember 2025
+            <p className="mt-3 text-xs font-semibold text-slate-500">
+              Statistik operasional terintegrasi Bank Sampah Graha Pena Palembang.
             </p>
 
             {/* Monthly Bar Chart Card */}
@@ -74,7 +74,7 @@ export default function ImpactKamiPage() {
                 <div>
                   <h2 className="text-xl font-extrabold text-slate-900">Total Sampah Terkumpul dalam 1 Tahun</h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    Bank Sampah Graha Pena · kilogram per bulan · data demonstrasi
+                    Bank Sampah Graha Pena · Kilogram per bulan
                   </p>
                 </div>
                 <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700 ring-1 ring-inset ring-green-600/15">

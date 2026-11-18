@@ -118,13 +118,47 @@ export default function RegisterPage() {
         return;
       }
 
+      const registeredUser = {
+        id: data.user?.id || `user-${Date.now()}`,
+        nama: form.name.trim(),
+        username: form.username.trim().toLowerCase(),
+        no_hp: form.phone.trim(),
+        alamat: form.address.trim(),
+        peran: "warga",
+        password: form.password,
+      };
+
+      if (typeof window !== "undefined") {
+        try {
+          const list = JSON.parse(localStorage.getItem("simpanwaste_registered_users") || "[]");
+          localStorage.setItem("simpanwaste_registered_users", JSON.stringify([...list, registeredUser]));
+        } catch {}
+      }
+
       setLoading(false);
       setSuccess(true);
       setTimeout(() => {
         router.push("/login?registered=true");
       }, 1200);
     } catch {
-      // Fallback for demo mock
+      // Fallback offline registrasi
+      const registeredUser = {
+        id: `user-${Date.now()}`,
+        nama: form.name.trim(),
+        username: form.username.trim().toLowerCase(),
+        no_hp: form.phone.trim(),
+        alamat: form.address.trim(),
+        peran: "warga",
+        password: form.password,
+      };
+
+      if (typeof window !== "undefined") {
+        try {
+          const list = JSON.parse(localStorage.getItem("simpanwaste_registered_users") || "[]");
+          localStorage.setItem("simpanwaste_registered_users", JSON.stringify([...list, registeredUser]));
+        } catch {}
+      }
+
       setLoading(false);
       setSuccess(true);
       setTimeout(() => {

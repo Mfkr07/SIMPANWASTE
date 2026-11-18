@@ -12,6 +12,7 @@ import {
 import { PageTitle, Card, Badge, Button, Modal } from "@/components/warga/WargaUI";
 import { useWarga } from "@/context/WargaContext";
 import { Report } from "@/data/wargaSeedData";
+import { DepositTracker } from "@/components/warga/DepositTracker";
 
 export default function WargaReportsPage() {
   const { citizenProfile, reports, notify } = useWarga();
@@ -40,15 +41,18 @@ export default function WargaReportsPage() {
     return () => document.removeEventListener("mousedown", closeOnOutsideClick);
   }, []);
 
-  const data = reports.filter(
-    (r) =>
-      (r.citizen === citizenProfile.name ||
-        r.citizen === "Ayu Lestari" ||
-        r.citizen === citizenProfile.username) &&
-      (statusFilter === "Semua Status" || r.status === statusFilter) &&
-      (r.id.toLowerCase().includes(search.toLowerCase()) ||
-        r.category.toLowerCase().includes(search.toLowerCase()))
-  );
+  const data = reports.filter((r) => {
+    const c = (r.citizen || "").toLowerCase().trim();
+    const myName = (citizenProfile.name || "").toLowerCase().trim();
+    const myUser = (citizenProfile.username || "").toLowerCase().trim();
+    const matchesUser = Boolean((myName && c === myName) || (myUser && c === myUser));
+    const matchesStatus = statusFilter === "Semua Status" || r.status === statusFilter;
+    const matchesSearch =
+      r.id.toLowerCase().includes(search.toLowerCase()) ||
+      r.category.toLowerCase().includes(search.toLowerCase());
+
+    return matchesUser && matchesStatus && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -185,17 +189,17 @@ export default function WargaReportsPage() {
         </div>
       </Card>
 
-      {/* Detail Modal */}
+      {/* Detail Modal with Deposit Tracker */}
       {selected && (
-        <Modal title="Detail Laporan Setoran" onClose={() => setSelected(null)}>
+        <Modal title="Detail Laporan" onClose={() => setSelected(null)} wide>
           <dl className="divide-y divide-slate-100">
             {[
               ["ID laporan", selected.id],
               ["Nama warga", selected.citizen],
               ["Kategori", selected.category],
-              ["Estimasi berat", `${selected.estimate} kg`],
+              ["Estimasi", `${selected.estimate} kg`],
               ["Metode", selected.method],
-              ["Lokasi tujuan", selected.location],
+              ["Lokasi", selected.location],
               ["Status", selected.status],
               ["Tanggal laporan", selected.date],
             ].map(([a, b]) => (
@@ -205,6 +209,10 @@ export default function WargaReportsPage() {
               </div>
             ))}
           </dl>
+
+          <div className="mt-6 border-t border-slate-100 pt-6">
+            <DepositTracker report={selected} />
+          </div>
 
           {selected.status === "Menunggu" && (
             <Button

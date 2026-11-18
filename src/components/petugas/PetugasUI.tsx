@@ -204,7 +204,15 @@ export function ReportTable({
             <th className="w-[120px] min-w-[110px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Metode</th>
             <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Tanggal</th>
             <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status</th>
-            <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Aksi</th>
+            <th
+              className={`${
+                actionLabel === "Detail"
+                  ? "w-[80px] min-w-[70px] text-center"
+                  : "w-[160px] min-w-[150px] text-right"
+              } px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600`}
+            >
+              {actionLabel}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -237,14 +245,32 @@ export function ReportTable({
               <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
                 <Badge tone={r.status === "Selesai" ? "green" : "amber"}>{r.status}</Badge>
               </td>
-              <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle text-right whitespace-nowrap">
-                <Button
-                  variant="secondary"
-                  className="min-h-8 px-3 py-1 text-xs cursor-pointer"
-                  onClick={() => onAction(r)}
-                >
-                  {actionLabel}
-                </Button>
+              <td
+                className={`${
+                  actionLabel === "Detail"
+                    ? "w-[80px] min-w-[70px] text-center"
+                    : "w-[160px] min-w-[150px] text-right"
+                } px-4 py-3.5 align-middle whitespace-nowrap`}
+              >
+                {actionLabel === "Detail" ? (
+                  <button
+                    type="button"
+                    title="Lihat Detail Laporan"
+                    aria-label="Lihat Detail Laporan"
+                    onClick={() => onAction(r)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-xs transition hover:border-green-500 hover:bg-green-50 hover:text-green-700 active:scale-95 cursor-pointer"
+                  >
+                    <FileText size={16} />
+                  </button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    className="min-h-8 px-3 py-1 text-xs cursor-pointer"
+                    onClick={() => onAction(r)}
+                  >
+                    {actionLabel}
+                  </Button>
+                )}
               </td>
             </tr>
           ))}

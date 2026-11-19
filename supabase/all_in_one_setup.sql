@@ -976,10 +976,6 @@ select
   coalesce((select count(*) from public.penarikan_saldo where status = 'menunggu'), 0)::int as penarikan_pending;
 
 grant select on public.v_admin_dashboard_stats to authenticated;
-    'saldo_baru', v_new_saldo
-  );
-end;
-$$;
 -- ==============================================================================
 -- SIMPANWASTE - DATA SEED AWAL
 -- Katalog 5 Kategori, Harga 3 Kondisi, Pengaturan, Bank Sampah, & Edukasi

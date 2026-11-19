@@ -7,17 +7,37 @@
 create extension if not exists "uuid-ossp";
 create extension if not exists "pgcrypto";
 
--- 2. Tipe Enum
-create type public.peran as enum ('warga', 'petugas', 'admin');
-create type public.metode_setoran as enum ('pickup', 'drop_off');
-create type public.status_laporan as enum ('menunggu', 'dalam_proses', 'selesai', 'dibatalkan');
-create type public.kondisi_sampah as enum ('bersih', 'kotor', 'tercampur_air');
-create type public.jenis_transaksi as enum ('setoran', 'penarikan');
-create type public.status_penarikan as enum ('menunggu', 'selesai', 'ditolak');
-create type public.tujuan_penarikan as enum ('tarik_tabungan', 'potong_iuran');
+-- 2. Tipe Enum (Aman dieksekusi berulang kali / idempotent)
+do $$ begin
+  create type public.peran as enum ('warga', 'petugas', 'admin');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.metode_setoran as enum ('pickup', 'drop_off');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.status_laporan as enum ('menunggu', 'dalam_proses', 'selesai', 'dibatalkan');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.kondisi_sampah as enum ('bersih', 'kotor', 'tercampur_air');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.jenis_transaksi as enum ('setoran', 'penarikan');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.status_penarikan as enum ('menunggu', 'selesai', 'ditolak');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.tujuan_penarikan as enum ('tarik_tabungan', 'potong_iuran');
+exception when duplicate_object then null; end $$;
 
 -- 3. Tabel Profil (1:1 dengan auth.users)
-create table public.profil (
+create table if not exists public.profil (
   id uuid primary key references auth.users(id) on delete cascade,
   nama text not null,
   username text unique not null check (username ~ '^[a-z0-9._]+$'),
@@ -28,18 +48,18 @@ create table public.profil (
 );
 
 -- Index username untuk pencarian cepat saat login/lookup
-create index idx_profil_username on public.profil (username);
-create index idx_profil_peran on public.profil (peran);
+create index if not exists idx_profil_username on public.profil (username);
+create index if not exists idx_profil_peran on public.profil (peran);
 
 -- 4. Tabel PIN Pengguna (Tersimpan sebagai Hash, Terpisah dari Profil)
-create table public.pin_pengguna (
+create table if not exists public.pin_pengguna (
   id_pengguna uuid primary key references public.profil(id) on delete cascade,
   pin_hash text not null,
   updated_at timestamptz not null default now()
 );
 
 -- 5. Tabel Bank Sampah
-create table public.bank_sampah (
+create table if not exists public.bank_sampah (
   id uuid primary key default gen_random_uuid(),
   nama text not null,
   alamat text not null,
@@ -51,10 +71,10 @@ create table public.bank_sampah (
   created_at timestamptz not null default now()
 );
 
-create index idx_bank_sampah_aktif on public.bank_sampah (is_aktif);
+create index if not exists idx_bank_sampah_aktif on public.bank_sampah (is_aktif);
 
 -- 6. Tabel Kategori Sampah
-create table public.kategori_sampah (
+create table if not exists public.kategori_sampah (
   id uuid primary key default gen_random_uuid(),
   nama_kategori text not null unique,
   deskripsi text,
@@ -63,7 +83,7 @@ create table public.kategori_sampah (
 );
 
 -- 7. Tabel Harga Sampah (Kombinasi Kategori x 3 Kondisi)
-create table public.harga_sampah (
+create table if not exists public.harga_sampah (
   id uuid primary key default gen_random_uuid(),
   id_kategori uuid not null references public.kategori_sampah(id) on delete cascade,
   kondisi public.kondisi_sampah not null,
@@ -73,20 +93,21 @@ create table public.harga_sampah (
 );
 
 -- 8. Tabel Pengaturan Sistem (Singleton: batas minimum pickup, dll.)
-create table public.pengaturan_sistem (
+create table if not exists public.pengaturan_sistem (
   id uuid primary key default gen_random_uuid(),
   batas_minimum_pickup_kg numeric(8, 2) not null default 5.00 check (batas_minimum_pickup_kg > 0),
   updated_at timestamptz not null default now()
 );
 
 -- 9. Tabel Laporan Setoran
-create table public.laporan_setoran (
+create table if not exists public.laporan_setoran (
   id uuid primary key default gen_random_uuid(),
   id_pengguna uuid not null references public.profil(id) on delete cascade,
   metode public.metode_setoran not null,
   id_bank_sampah uuid references public.bank_sampah(id),
   latitude numeric(10, 7),
   longitude numeric(10, 7),
+  catatan_lokasi text,
   estimasi_berat numeric(8, 2) not null check (estimasi_berat > 0),
   status public.status_laporan not null default 'menunggu',
   tanggal_lapor timestamptz not null default now(),
@@ -96,12 +117,12 @@ create table public.laporan_setoran (
   )
 );
 
-create index idx_laporan_pengguna on public.laporan_setoran (id_pengguna);
-create index idx_laporan_status on public.laporan_setoran (status);
-create index idx_laporan_tanggal on public.laporan_setoran (tanggal_lapor desc);
+create index if not exists idx_laporan_pengguna on public.laporan_setoran (id_pengguna);
+create index if not exists idx_laporan_status on public.laporan_setoran (status);
+create index if not exists idx_laporan_tanggal on public.laporan_setoran (tanggal_lapor desc);
 
 -- 10. Tabel Detail Setoran
-create table public.detail_setoran (
+create table if not exists public.detail_setoran (
   id uuid primary key default gen_random_uuid(),
   id_laporan uuid not null references public.laporan_setoran(id) on delete cascade,
   id_kategori uuid not null references public.kategori_sampah(id),
@@ -111,39 +132,42 @@ create table public.detail_setoran (
   constraint uq_detail_laporan_kategori unique (id_laporan, id_kategori)
 );
 
-create index idx_detail_laporan on public.detail_setoran (id_laporan);
+create index if not exists idx_detail_laporan on public.detail_setoran (id_laporan);
 
 -- 11. Tabel Penimbangan (Petugas memvalidasi timbangan manual)
-create table public.penimbangan (
+create table if not exists public.penimbangan (
   id uuid primary key default gen_random_uuid(),
   id_laporan uuid not null unique references public.laporan_setoran(id) on delete cascade,
   id_petugas uuid not null references public.profil(id),
   tanggal_timbang timestamptz not null default now(),
   total_berat numeric(8, 2) not null check (total_berat >= 0),
-  total_nilai numeric(12, 2) not null check (total_nilai >= 0)
+  total_nilai numeric(12, 2) not null check (total_nilai >= 0),
+  foto_bukti_url text
 );
 
-create index idx_penimbangan_laporan on public.penimbangan (id_laporan);
-create index idx_penimbangan_petugas on public.penimbangan (id_petugas);
+create index if not exists idx_penimbangan_laporan on public.penimbangan (id_laporan);
+create index if not exists idx_penimbangan_petugas on public.penimbangan (id_petugas);
 
 -- 12. Tabel Penarikan Saldo / Potong Iuran
-create table public.penarikan_saldo (
+create table if not exists public.penarikan_saldo (
   id uuid primary key default gen_random_uuid(),
   id_pengguna uuid not null references public.profil(id) on delete cascade,
   jumlah numeric(12, 2) not null check (jumlah > 0),
   tujuan public.tujuan_penarikan not null,
   status public.status_penarikan not null default 'menunggu',
+  keterangan text,
+  bukti_transfer_url text,
   alasan_penolakan text,
   tanggal_ajuan timestamptz not null default now(),
   id_petugas uuid references public.profil(id),
   tanggal_proses timestamptz
 );
 
-create index idx_penarikan_pengguna on public.penarikan_saldo (id_pengguna);
-create index idx_penarikan_status on public.penarikan_saldo (status);
+create index if not exists idx_penarikan_pengguna on public.penarikan_saldo (id_pengguna);
+create index if not exists idx_penarikan_status on public.penarikan_saldo (status);
 
 -- 13. Tabel Saldo Transaksi (Ledger Mutasi Tabungan)
-create table public.saldo_transaksi (
+create table if not exists public.saldo_transaksi (
   id uuid primary key default gen_random_uuid(),
   id_pengguna uuid not null references public.profil(id) on delete cascade,
   id_penimbangan uuid references public.penimbangan(id) on delete set null,
@@ -154,10 +178,10 @@ create table public.saldo_transaksi (
   saldo numeric(12, 2) not null check (saldo >= 0)
 );
 
-create index idx_saldo_pengguna on public.saldo_transaksi (id_pengguna, tanggal desc);
+create index if not exists idx_saldo_pengguna on public.saldo_transaksi (id_pengguna, tanggal desc);
 
 -- 14. Tabel Konten Edukasi
-create table public.konten_edukasi (
+create table if not exists public.konten_edukasi (
   id uuid primary key default gen_random_uuid(),
   judul text not null,
   topik text not null,
@@ -167,17 +191,18 @@ create table public.konten_edukasi (
 );
 
 -- 15. Tabel Mitra Pengepul
-create table public.mitra_pengepul (
+create table if not exists public.mitra_pengepul (
   id uuid primary key default gen_random_uuid(),
   nama text not null,
   alamat text not null,
   kontak text not null,
+  fokus text,
   is_aktif boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 -- 16. Tabel Distribusi Mitra
-create table public.distribusi_mitra (
+create table if not exists public.distribusi_mitra (
   id uuid primary key default gen_random_uuid(),
   id_mitra uuid not null references public.mitra_pengepul(id),
   id_kategori uuid not null references public.kategori_sampah(id),
@@ -186,7 +211,14 @@ create table public.distribusi_mitra (
   catatan text
 );
 
--- 17. View Publik untuk Bank Sampah Aktif (Landing Page)
+-- 17. Safe Alter Migration (Memastikan kompatibilitas jika tabel sudah ada sebelumnya)
+alter table public.laporan_setoran add column if not exists catatan_lokasi text;
+alter table public.penimbangan add column if not exists foto_bukti_url text;
+alter table public.penarikan_saldo add column if not exists keterangan text;
+alter table public.penarikan_saldo add column if not exists bukti_transfer_url text;
+alter table public.mitra_pengepul add column if not exists fokus text;
+
+-- 18. View Publik untuk Bank Sampah Aktif (Landing Page)
 create or replace view public.v_bank_sampah_publik as
 select
   id,
@@ -625,7 +657,8 @@ $$;
 -- 6. RPC Petugas: Proses Penimbangan Sampah (Transaksi Atomik + Snapshot Harga)
 create or replace function public.proses_penimbangan(
   p_id_laporan uuid,
-  p_detail jsonb
+  p_detail jsonb,
+  p_foto_bukti_url text default null
 )
 returns jsonb
 language plpgsql
@@ -673,9 +706,9 @@ begin
   -- Kunci data profil nasabah untuk serialisasi saldo
   perform 1 from public.profil where id = v_laporan.id_pengguna for update;
 
-  -- Simpan header penimbangan
-  insert into public.penimbangan (id_laporan, id_petugas, total_berat, total_nilai)
-  values (p_id_laporan, v_petugas_id, 0, 0)
+  -- Simpan header penimbangan (termasuk foto bukti bila ada)
+  insert into public.penimbangan (id_laporan, id_petugas, total_berat, total_nilai, foto_bukti_url)
+  values (p_id_laporan, v_petugas_id, 0, 0, p_foto_bukti_url)
   returning id into v_id_penimbangan;
 
   -- Iterasi rincian penimbangan per kategori
@@ -744,11 +777,12 @@ begin
 end;
 $$;
 
--- 7. RPC Warga: Pengajuan Penarikan Saldo / Potong Iuran (Dengan Verifikasi PIN)
+-- 7. RPC Warga: Pengajuan Penarikan Saldo / Potong Iuran (Dengan Verifikasi PIN & Keterangan)
 create or replace function public.ajukan_penarikan(
   p_jumlah numeric,
   p_tujuan public.tujuan_penarikan,
-  p_pin text
+  p_pin text,
+  p_keterangan text default null
 )
 returns jsonb
 language plpgsql
@@ -783,10 +817,10 @@ begin
   end if;
 
   insert into public.penarikan_saldo (
-    id_pengguna, jumlah, tujuan, status, tanggal_ajuan
+    id_pengguna, jumlah, tujuan, status, keterangan, tanggal_ajuan
   )
   values (
-    v_user_id, p_jumlah, p_tujuan, 'menunggu', now()
+    v_user_id, p_jumlah, p_tujuan, 'menunggu', p_keterangan, now()
   )
   returning id into v_id_penarikan;
 
@@ -799,11 +833,12 @@ begin
 end;
 $$;
 
--- 8. RPC Petugas: Proses Penarikan Saldo (Selesai atau Ditolak)
+-- 8. RPC Petugas: Proses Penarikan Saldo (Selesai dengan Bukti Transfer atau Ditolak)
 create or replace function public.proses_penarikan(
   p_id_penarikan uuid,
   p_status public.status_penarikan,
-  p_alasan_penolakan text default null
+  p_alasan_penolakan text default null,
+  p_bukti_transfer_url text default null
 )
 returns jsonb
 language plpgsql
@@ -872,7 +907,8 @@ begin
   update public.penarikan_saldo
   set status = 'selesai',
       id_petugas = v_petugas_id,
-      tanggal_proses = now()
+      tanggal_proses = now(),
+      bukti_transfer_url = coalesce(p_bukti_transfer_url, bukti_transfer_url)
   where id = p_id_penarikan;
 
   insert into public.saldo_transaksi (
@@ -886,6 +922,60 @@ begin
     'success', true,
     'id_penarikan', p_id_penarikan,
     'status', 'selesai',
+    'saldo_baru', v_new_saldo
+  );
+end;
+$$;
+
+-- 9. RPC Petugas: Mulai Penjemputan Sampah (Mengubah status dari 'menunggu' ke 'dalam_proses')
+create or replace function public.mulai_penjemputan(p_id_laporan uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_laporan record;
+begin
+  if not public.is_petugas_or_admin() then
+    raise exception 'Akses ditolak: hanya petugas atau admin yang dapat memulai penjemputan.';
+  end if;
+
+  select * into v_laporan
+  from public.laporan_setoran
+  where id = p_id_laporan
+  for update;
+
+  if not found then
+    raise exception 'Laporan tidak ditemukan.';
+  end if;
+
+  if v_laporan.status = 'dalam_proses' then
+    return jsonb_build_object('success', true, 'id_laporan', p_id_laporan, 'status', 'dalam_proses', 'message', 'Laporan sudah dalam proses.');
+  end if;
+
+  if v_laporan.status <> 'menunggu' then
+    raise exception 'Laporan tidak dapat dijemput karena berstatus %.', v_laporan.status;
+  end if;
+
+  update public.laporan_setoran
+  set status = 'dalam_proses'
+  where id = p_id_laporan;
+
+  return jsonb_build_object('success', true, 'id_laporan', p_id_laporan, 'status', 'dalam_proses');
+end;
+$$;
+
+-- 10. View Agregasi Metrik Dashboard Admin
+create or replace view public.v_admin_dashboard_stats as
+select
+  coalesce((select sum(total_berat) from public.penimbangan), 0.00)::numeric(12,2) as total_sampah_terkumpul_kg,
+  coalesce((select sum(jumlah) from public.saldo_transaksi where jenis = 'setoran'), 0.00)::numeric(12,2) as total_pembayaran_sampah_rp,
+  coalesce((select count(*) from public.profil where peran = 'warga'), 0)::int as total_nasabah_aktif,
+  coalesce((select count(*) from public.laporan_setoran where status = 'menunggu'), 0)::int as laporan_pending,
+  coalesce((select count(*) from public.penarikan_saldo where status = 'menunggu'), 0)::int as penarikan_pending;
+
+grant select on public.v_admin_dashboard_stats to authenticated;
     'saldo_baru', v_new_saldo
   );
 end;
@@ -1005,8 +1095,8 @@ values
 on conflict do nothing;
 
 -- 6. Mitra Pengepul Awal
-insert into public.mitra_pengepul (nama, alamat, kontak, is_aktif)
+insert into public.mitra_pengepul (nama, alamat, kontak, fokus, is_aktif)
 values
-  ('UD Daur Ulang Musi Indah', 'Jl. Soekarno Hatta No. 101, Palembang', '0812-7890-1234', true),
-  ('CV Sriwijaya Logam Presisi', 'Kawasan Industri Gandus, Palembang', '0813-6789-5678', true)
+  ('UD Daur Ulang Musi Indah', 'Jl. Soekarno Hatta No. 101, Palembang', '0812-7890-1234', 'Plastik, Kertas, Kaca', true),
+  ('CV Sriwijaya Logam Presisi', 'Kawasan Industri Gandus, Palembang', '0813-6789-5678', 'Besi, Logam Campuran', true)
 on conflict do nothing;

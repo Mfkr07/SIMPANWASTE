@@ -230,12 +230,15 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
         };
       });
 
+      const photoPayload = verifiedItems.find((i) => i.weighingPhoto?.dataUrl)?.weighingPhoto?.dataUrl || null;
+
       fetch("/api/penimbangan/proses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_laporan: reportId,
           items: itemsPayload,
+          foto_bukti_url: photoPayload,
         }),
       })
         .then((res) => res.json())

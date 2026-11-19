@@ -27,13 +27,34 @@ export async function POST(request: Request) {
       );
     }
 
-    const { jumlah, tujuan, pin } = validated.data;
+    const { jumlah, tujuan, pin, keterangan, description } = validated.data;
+    const ket = keterangan || description || null;
 
-    const { data: result, error: rpcError } = await supabase.rpc("ajukan_penarikan", {
+    let { data: result, error: rpcError } = await supabase.rpc("ajukan_penarikan", {
       p_jumlah: jumlah,
       p_tujuan: tujuan,
       p_pin: pin,
+      p_keterangan: ket,
     });
+
+    if (rpcError && rpcError.message.includes("ajukan_penarikan")) {
+      const fallback = await supabase.rpc("ajukan_penarikan", {
+        p_jumlah: jumlah,
+        p_tujuan: tujuan,
+        p_pin: pin,
+      });
+      result = fallback.data;
+      rpcError = fallback.error;
+
+      if (!rpcError && ket && result?.id_penarikan) {
+        try {
+          await supabase
+            .from("penarikan_saldo")
+            .update({ keterangan: ket })
+            .eq("id", result.id_penarikan);
+        } catch {}
+      }
+    }
 
     if (rpcError) {
       return NextResponse.json(

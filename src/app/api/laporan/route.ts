@@ -23,15 +23,7 @@ export async function GET(request: Request) {
     let query = supabase
       .from("laporan_setoran")
       .select(`
-        id,
-        id_pengguna,
-        metode,
-        id_bank_sampah,
-        latitude,
-        longitude,
-        estimasi_berat,
-        status,
-        tanggal_lapor,
+        *,
         profil:id_pengguna (id, nama, username, no_hp, alamat),
         bank_sampah (id, nama, alamat),
         detail_setoran (
@@ -43,11 +35,7 @@ export async function GET(request: Request) {
           kategori_sampah (id, nama_kategori)
         ),
         penimbangan (
-          id,
-          tanggal_timbang,
-          total_berat,
-          total_nilai,
-          id_petugas,
+          *,
           profil:id_petugas (nama)
         )
       `)
@@ -92,7 +80,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { metode, id_bank_sampah, latitude, longitude, estimasi_berat, kategori_ids } =
+    const { metode, id_bank_sampah, latitude, longitude, estimasi_berat, kategori_ids, catatan_lokasi, pickupLocation } =
       validated.data;
 
     // Jika metode pickup, validasi batas minimum pickup dari pengaturan sistem
@@ -116,19 +104,37 @@ export async function POST(request: Request) {
     }
 
     // Insert laporan_setoran
-    const { data: laporan, error: laporanError } = await supabase
+    const insertPayload: Record<string, any> = {
+      id_pengguna: authUser.id,
+      metode,
+      id_bank_sampah: metode === "drop_off" ? id_bank_sampah : null,
+      latitude: metode === "pickup" ? latitude : null,
+      longitude: metode === "pickup" ? longitude : null,
+      estimasi_berat,
+      status: "menunggu",
+    };
+
+    const locationNote = catatan_lokasi || pickupLocation;
+    if (locationNote) {
+      insertPayload.catatan_lokasi = locationNote;
+    }
+
+    let { data: laporan, error: laporanError } = await supabase
       .from("laporan_setoran")
-      .insert({
-        id_pengguna: authUser.id,
-        metode,
-        id_bank_sampah: metode === "drop_off" ? id_bank_sampah : null,
-        latitude: metode === "pickup" ? latitude : null,
-        longitude: metode === "pickup" ? longitude : null,
-        estimasi_berat,
-        status: "menunggu",
-      })
+      .insert(insertPayload)
       .select()
       .single();
+
+    if (laporanError && laporanError.message.includes("catatan_lokasi")) {
+      delete insertPayload.catatan_lokasi;
+      const retry = await supabase
+        .from("laporan_setoran")
+        .insert(insertPayload)
+        .select()
+        .single();
+      laporan = retry.data;
+      laporanError = retry.error;
+    }
 
     if (laporanError || !laporan) {
       return NextResponse.json(

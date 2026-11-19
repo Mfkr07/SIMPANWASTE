@@ -5,6 +5,8 @@ export const ajukanPenarikanSchema = z.object({
   tujuan: z.enum(["tarik_tabungan", "potong_iuran"], {
     errorMap: () => ({ message: "Tujuan penarikan harus tarik_tabungan atau potong_iuran" }),
   }),
+  keterangan: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
   pin: z
     .string()
     .length(6, "PIN harus tepat 6 digit")
@@ -16,6 +18,7 @@ export const prosesPenarikanSchema = z
     id_penarikan: z.string().uuid("ID Penarikan tidak valid"),
     status: z.enum(["selesai", "ditolak"]),
     alasan_penolakan: z.string().optional().nullable(),
+    bukti_transfer_url: z.string().optional().nullable(),
   })
   .refine(
     (data) => {

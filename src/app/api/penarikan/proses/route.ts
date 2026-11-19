@@ -27,13 +27,34 @@ export async function POST(request: Request) {
       );
     }
 
-    const { id_penarikan, status, alasan_penolakan } = validated.data;
+    const { id_penarikan, status, alasan_penolakan, bukti_transfer_url } = validated.data;
+    const proofUrl = bukti_transfer_url || (body.proof && typeof body.proof === "object" ? body.proof.dataUrl : body.proof) || null;
 
-    const { data: result, error: rpcError } = await supabase.rpc("proses_penarikan", {
+    let { data: result, error: rpcError } = await supabase.rpc("proses_penarikan", {
       p_id_penarikan: id_penarikan,
       p_status: status,
       p_alasan_penolakan: alasan_penolakan || null,
+      p_bukti_transfer_url: proofUrl,
     });
+
+    if (rpcError && rpcError.message.includes("proses_penarikan")) {
+      const fallback = await supabase.rpc("proses_penarikan", {
+        p_id_penarikan: id_penarikan,
+        p_status: status,
+        p_alasan_penolakan: alasan_penolakan || null,
+      });
+      result = fallback.data;
+      rpcError = fallback.error;
+
+      if (!rpcError && proofUrl) {
+        try {
+          await supabase
+            .from("penarikan_saldo")
+            .update({ bukti_transfer_url: proofUrl })
+            .eq("id", id_penarikan);
+        } catch {}
+      }
+    }
 
     if (rpcError) {
       return NextResponse.json(

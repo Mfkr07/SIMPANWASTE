@@ -27,12 +27,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const { id_laporan, items } = validated.data;
+    const { id_laporan, items, foto_bukti_url, weighingPhoto } = validated.data;
+    const photo = foto_bukti_url || weighingPhoto || null;
 
-    const { data: result, error: rpcError } = await supabase.rpc("proses_penimbangan", {
+    // Coba panggil RPC dengan parameter p_foto_bukti_url
+    let { data: result, error: rpcError } = await supabase.rpc("proses_penimbangan", {
       p_id_laporan: id_laporan,
       p_detail: items,
+      p_foto_bukti_url: photo,
     });
+
+    // Fallback jika database live masih memakai RPC 2-parameter
+    if (rpcError && rpcError.message.includes("proses_penimbangan")) {
+      const fallback = await supabase.rpc("proses_penimbangan", {
+        p_id_laporan: id_laporan,
+        p_detail: items,
+      });
+      result = fallback.data;
+      rpcError = fallback.error;
+
+      // Jika berhasil dan ada foto, update kolom foto_bukti_url jika kolom sudah ada
+      if (!rpcError && photo && result?.id_penimbangan) {
+        try {
+          await supabase
+            .from("penimbangan")
+            .update({ foto_bukti_url: photo })
+            .eq("id", result.id_penimbangan);
+        } catch {}
+      }
+    }
 
     if (rpcError) {
       return NextResponse.json(

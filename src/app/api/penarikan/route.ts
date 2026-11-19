@@ -22,13 +22,7 @@ export async function GET() {
     let query = supabase
       .from("penarikan_saldo")
       .select(`
-        id,
-        jumlah,
-        tujuan,
-        status,
-        alasan_penolakan,
-        tanggal_ajuan,
-        tanggal_proses,
+        *,
         profil:id_pengguna (id, nama, username, no_hp),
         petugas:id_petugas (nama)
       `)

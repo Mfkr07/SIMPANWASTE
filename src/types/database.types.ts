@@ -67,6 +67,7 @@ export interface LaporanSetoran {
   id_bank_sampah: string | null;
   latitude: number | null;
   longitude: number | null;
+  catatan_lokasi?: string | null;
   estimasi_berat: number;
   status: StatusLaporan;
   tanggal_lapor: string;
@@ -88,6 +89,7 @@ export interface Penimbangan {
   tanggal_timbang: string;
   total_berat: number;
   total_nilai: number;
+  foto_bukti_url?: string | null;
 }
 
 export interface PenarikanSaldo {
@@ -96,6 +98,8 @@ export interface PenarikanSaldo {
   jumlah: number;
   tujuan: TujuanPenarikan;
   status: StatusPenarikan;
+  keterangan?: string | null;
+  bukti_transfer_url?: string | null;
   alasan_penolakan: string | null;
   tanggal_ajuan: string;
   id_petugas: string | null;
@@ -127,6 +131,7 @@ export interface MitraPengepul {
   nama: string;
   alamat: string;
   kontak: string;
+  fokus?: string | null;
   is_aktif: boolean;
   created_at: string;
 }
@@ -138,4 +143,12 @@ export interface DistribusiMitra {
   berat: number;
   tanggal: string;
   catatan: string | null;
+}
+
+export interface AdminDashboardStats {
+  total_sampah_terkumpul_kg: number;
+  total_pembayaran_sampah_rp: number;
+  total_nasabah_aktif: number;
+  laporan_pending: number;
+  penarikan_pending: number;
 }

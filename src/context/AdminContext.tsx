@@ -413,6 +413,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           nama: partner.name,
           alamat: partner.address,
           kontak: partner.phone,
+          fokus: partner.focus,
         }),
       }).catch(() => {});
 
@@ -527,6 +528,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           id_penarikan: id,
           status: "selesai",
+          bukti_transfer_url: proof?.dataUrl || null,
         }),
       })
         .then((res) => res.json())

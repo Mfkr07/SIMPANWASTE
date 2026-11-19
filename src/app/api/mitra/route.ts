@@ -6,7 +6,7 @@ export async function GET() {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("mitra_pengepul")
-      .select("id, nama, alamat, kontak, is_aktif, created_at")
+      .select("*")
       .order("nama", { ascending: true });
 
     if (error) {
@@ -32,11 +32,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data, error } = await supabase
+    const fokus = body.fokus || (Array.isArray(body.materials) ? body.materials.join(", ") : body.materials) || null;
+    const insertPayload: Record<string, any> = { nama, alamat, kontak, is_aktif: true };
+    if (fokus) {
+      insertPayload.fokus = fokus;
+    }
+
+    let { data, error } = await supabase
       .from("mitra_pengepul")
-      .insert({ nama, alamat, kontak, is_aktif: true })
+      .insert(insertPayload)
       .select()
       .single();
+
+    if (error && error.message.includes("fokus")) {
+      delete insertPayload.fokus;
+      const retry = await supabase
+        .from("mitra_pengepul")
+        .insert(insertPayload)
+        .select()
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

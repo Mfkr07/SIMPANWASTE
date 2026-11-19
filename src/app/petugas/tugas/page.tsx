@@ -42,6 +42,11 @@ export default function PetugasTugasPage() {
   }, [reports, myName, status, search]);
 
   const handleStartPickup = (reportId: string) => {
+    fetch("/api/laporan/jemput", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_laporan: reportId }),
+    }).catch(() => {});
     addTrackerStage(reportId, "Petugas dalam Perjalanan");
     notify("Penjemputan dimulai dan tracker Warga diperbarui.");
   };

@@ -11,9 +11,10 @@ export function mapDbReportToUi(db: any): Report {
   }).format(dateObj);
 
   const location =
-    db.metode === "drop_off"
+    db.catatan_lokasi ||
+    (db.metode === "drop_off"
       ? db.bank_sampah?.nama || "Bank Sampah Graha Pena Palembang"
-      : db.profil?.alamat || "Lokasi Warga (Pickup)";
+      : db.profil?.alamat || "Lokasi Warga (Pickup)");
 
   const categories = (db.detail_setoran || [])
     .map((d: any) => d.kategori_sampah?.nama_kategori)
@@ -64,6 +65,9 @@ export function mapDbReportToUi(db: any): Report {
     price:
       d.subtotal && d.berat_aktual ? Math.round(Number(d.subtotal) / Number(d.berat_aktual)) : 0,
     subtotal: Number(d.subtotal || 0),
+    weighingPhoto: db.penimbangan?.foto_bukti_url
+      ? { name: "bukti_penimbangan.jpg", type: "image/jpeg", dataUrl: db.penimbangan.foto_bukti_url }
+      : undefined,
   }));
 
   return {
@@ -103,7 +107,7 @@ export function mapDbWithdrawalToUi(w: any): WithdrawalRequest {
     amount: Number(w.jumlah || 0),
     type: w.tujuan === "tarik_tabungan" ? "Penarikan manual" : "Potong iuran bulanan",
     status: w.status === "selesai" ? "Selesai" : "Menunggu",
-    description: w.alasan_penolakan || "Permintaan penarikan saldo nasabah",
+    description: w.keterangan || w.alasan_penolakan || "Permintaan penarikan saldo nasabah",
     submittedDate: dateFormatted,
     processedDate: w.tanggal_proses
       ? new Intl.DateTimeFormat("id-ID", {
@@ -113,5 +117,8 @@ export function mapDbWithdrawalToUi(w: any): WithdrawalRequest {
         }).format(new Date(w.tanggal_proses))
       : undefined,
     processedBy: w.petugas?.nama || undefined,
+    proof: w.bukti_transfer_url
+      ? { name: "bukti_transfer.jpg", type: "image/jpeg", dataUrl: w.bukti_transfer_url }
+      : undefined,
   };
 }

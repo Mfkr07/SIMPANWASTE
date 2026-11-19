@@ -7,6 +7,8 @@ export const createLaporanSchema = z
     latitude: z.number().optional().nullable(),
     longitude: z.number().optional().nullable(),
     estimasi_berat: z.number().positive("Estimasi berat harus lebih dari 0 kg"),
+    catatan_lokasi: z.string().optional().nullable(),
+    pickupLocation: z.string().optional().nullable(),
     kategori_ids: z.array(z.string().uuid()).min(1, "Pilih minimal 1 kategori sampah"),
   })
   .refine(

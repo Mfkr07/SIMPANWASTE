@@ -362,6 +362,7 @@ export default function CreateReportPage() {
         id_bank_sampah: method === "Drop-off" ? GRAHA_PENA_UUID : null,
         latitude: method === "Pickup" ? -2.9463 : null,
         longitude: method === "Pickup" ? 104.7391 : null,
+        catatan_lokasi: method === "Pickup" ? pickupLocation : null,
         estimasi_berat: totalWeight,
         kategori_ids: kategoriUuids,
       }),

@@ -10,6 +10,8 @@ export const detailPenimbanganItemSchema = z.object({
 
 export const prosesPenimbanganSchema = z.object({
   id_laporan: z.string().uuid("ID Laporan tidak valid"),
+  foto_bukti_url: z.string().optional().nullable(),
+  weighingPhoto: z.string().optional().nullable(),
   items: z
     .array(detailPenimbanganItemSchema)
     .min(1, "Rincian penimbangan minimal memuat 1 jenis kategori sampah"),

@@ -285,22 +285,26 @@ alter table public.distribusi_mitra enable row level security;
 -- POLICY: PROFIL
 -- ==============================================================================
 -- Pengguna dapat melihat profil sendiri; Admin dapat melihat semua
+drop policy if exists "profil_select_policy" on public.profil;
 create policy "profil_select_policy" on public.profil
   for select
   using (auth.uid() = id or public.is_admin());
 
 -- Pengguna dapat mengubah profil sendiri; Admin dapat mengubah profil siapa saja
+drop policy if exists "profil_update_policy" on public.profil;
 create policy "profil_update_policy" on public.profil
   for update
   using (auth.uid() = id or public.is_admin())
   with check (auth.uid() = id or public.is_admin());
 
 -- Registrasi akun: insert diizinkan jika id sesuai auth.uid()
+drop policy if exists "profil_insert_policy" on public.profil;
 create policy "profil_insert_policy" on public.profil
   for insert
   with check (auth.uid() = id or public.is_admin());
 
 -- Hanya admin yang dapat menghapus akun
+drop policy if exists "profil_delete_policy" on public.profil;
 create policy "profil_delete_policy" on public.profil
   for delete
   using (public.is_admin());
@@ -310,14 +314,17 @@ create policy "profil_delete_policy" on public.profil
 -- ==============================================================================
 -- Klien TIDAK BOLEH melakukan SELECT pada pin_pengguna untuk alasan keamanan
 -- Verifikasi PIN hanya melalui security definer RPC
+drop policy if exists "pin_no_direct_select" on public.pin_pengguna;
 create policy "pin_no_direct_select" on public.pin_pengguna
   for select
   using (false);
 
+drop policy if exists "pin_insert_policy" on public.pin_pengguna;
 create policy "pin_insert_policy" on public.pin_pengguna
   for insert
   with check (auth.uid() = id_pengguna or public.is_admin());
 
+drop policy if exists "pin_update_policy" on public.pin_pengguna;
 create policy "pin_update_policy" on public.pin_pengguna
   for update
   using (auth.uid() = id_pengguna or public.is_admin())
@@ -327,46 +334,56 @@ create policy "pin_update_policy" on public.pin_pengguna
 -- POLICY: DATA MASTER (bank_sampah, kategori_sampah, harga_sampah, pengaturan_sistem, konten_edukasi)
 -- ==============================================================================
 -- Semua pengguna login (termasuk anon via view v_bank_sampah_publik) dapat membaca
+drop policy if exists "bank_sampah_read_all" on public.bank_sampah;
 create policy "bank_sampah_read_all" on public.bank_sampah
   for select
   using (true);
 
+drop policy if exists "bank_sampah_admin_write" on public.bank_sampah;
 create policy "bank_sampah_admin_write" on public.bank_sampah
   for all
   using (public.is_admin())
   with check (public.is_admin());
 
+drop policy if exists "kategori_sampah_read_all" on public.kategori_sampah;
 create policy "kategori_sampah_read_all" on public.kategori_sampah
   for select
   using (true);
 
+drop policy if exists "kategori_sampah_admin_write" on public.kategori_sampah;
 create policy "kategori_sampah_admin_write" on public.kategori_sampah
   for all
   using (public.is_admin())
   with check (public.is_admin());
 
+drop policy if exists "harga_sampah_read_all" on public.harga_sampah;
 create policy "harga_sampah_read_all" on public.harga_sampah
   for select
   using (true);
 
+drop policy if exists "harga_sampah_admin_write" on public.harga_sampah;
 create policy "harga_sampah_admin_write" on public.harga_sampah
   for all
   using (public.is_admin())
   with check (public.is_admin());
 
+drop policy if exists "pengaturan_sistem_read_all" on public.pengaturan_sistem;
 create policy "pengaturan_sistem_read_all" on public.pengaturan_sistem
   for select
   using (true);
 
+drop policy if exists "pengaturan_sistem_admin_write" on public.pengaturan_sistem;
 create policy "pengaturan_sistem_admin_write" on public.pengaturan_sistem
   for all
   using (public.is_admin())
   with check (public.is_admin());
 
+drop policy if exists "konten_edukasi_read_all" on public.konten_edukasi;
 create policy "konten_edukasi_read_all" on public.konten_edukasi
   for select
   using (true);
 
+drop policy if exists "konten_edukasi_admin_write" on public.konten_edukasi;
 create policy "konten_edukasi_admin_write" on public.konten_edukasi
   for all
   using (public.is_admin())
@@ -376,16 +393,19 @@ create policy "konten_edukasi_admin_write" on public.konten_edukasi
 -- POLICY: LAPORAN_SETORAN & DETAIL_SETORAN
 -- ==============================================================================
 -- Warga membaca laporannya sendiri; Petugas & Admin membaca semua laporan
+drop policy if exists "laporan_select_policy" on public.laporan_setoran;
 create policy "laporan_select_policy" on public.laporan_setoran
   for select
   using (id_pengguna = auth.uid() or public.is_petugas_or_admin());
 
 -- Warga membuat laporan untuk dirinya sendiri
+drop policy if exists "laporan_insert_policy" on public.laporan_setoran;
 create policy "laporan_insert_policy" on public.laporan_setoran
   for insert
   with check (id_pengguna = auth.uid());
 
 -- Warga hanya dapat mengubah saat status 'menunggu'; Petugas/Admin dapat update status
+drop policy if exists "laporan_update_policy" on public.laporan_setoran;
 create policy "laporan_update_policy" on public.laporan_setoran
   for update
   using (
@@ -398,6 +418,7 @@ create policy "laporan_update_policy" on public.laporan_setoran
   );
 
 -- Detail Setoran
+drop policy if exists "detail_select_policy" on public.detail_setoran;
 create policy "detail_select_policy" on public.detail_setoran
   for select
   using (
@@ -408,6 +429,7 @@ create policy "detail_select_policy" on public.detail_setoran
     )
   );
 
+drop policy if exists "detail_insert_policy" on public.detail_setoran;
 create policy "detail_insert_policy" on public.detail_setoran
   for insert
   with check (
@@ -420,6 +442,7 @@ create policy "detail_insert_policy" on public.detail_setoran
     or public.is_petugas_or_admin()
   );
 
+drop policy if exists "detail_update_policy" on public.detail_setoran;
 create policy "detail_update_policy" on public.detail_setoran
   for update
   using (
@@ -437,6 +460,7 @@ create policy "detail_update_policy" on public.detail_setoran
 -- POLICY: PENIMBANGAN
 -- ==============================================================================
 -- Warga membaca penimbangan laporannya sendiri; Petugas & Admin membaca semua
+drop policy if exists "penimbangan_select_policy" on public.penimbangan;
 create policy "penimbangan_select_policy" on public.penimbangan
   for select
   using (
@@ -448,10 +472,12 @@ create policy "penimbangan_select_policy" on public.penimbangan
   );
 
 -- Penimbangan hanya boleh ditulis oleh Petugas atau Admin
+drop policy if exists "penimbangan_insert_policy" on public.penimbangan;
 create policy "penimbangan_insert_policy" on public.penimbangan
   for insert
   with check (public.is_petugas_or_admin());
 
+drop policy if exists "penimbangan_update_policy" on public.penimbangan;
 create policy "penimbangan_update_policy" on public.penimbangan
   for update
   using (public.is_petugas_or_admin())
@@ -461,16 +487,19 @@ create policy "penimbangan_update_policy" on public.penimbangan
 -- POLICY: PENARIKAN_SALDO
 -- ==============================================================================
 -- Warga membaca pengajuan miliknya; Petugas & Admin membaca semua antrean
+drop policy if exists "penarikan_select_policy" on public.penarikan_saldo;
 create policy "penarikan_select_policy" on public.penarikan_saldo
   for select
   using (id_pengguna = auth.uid() or public.is_petugas_or_admin());
 
 -- Warga membuat pengajuan penarikan miliknya (atau via RPC)
+drop policy if exists "penarikan_insert_policy" on public.penarikan_saldo;
 create policy "penarikan_insert_policy" on public.penarikan_saldo
   for insert
   with check (id_pengguna = auth.uid());
 
 -- Petugas dan Admin memproses penarikan
+drop policy if exists "penarikan_update_policy" on public.penarikan_saldo;
 create policy "penarikan_update_policy" on public.penarikan_saldo
   for update
   using (public.is_petugas_or_admin())
@@ -480,19 +509,23 @@ create policy "penarikan_update_policy" on public.penarikan_saldo
 -- POLICY: SALDO_TRANSAKSI (MUTASI TABUNGAN)
 -- ==============================================================================
 -- Warga hanya membaca riwayat miliknya sendiri. Admin membaca agregat via fungsi/dashboard.
+drop policy if exists "saldo_transaksi_select_policy" on public.saldo_transaksi;
 create policy "saldo_transaksi_select_policy" on public.saldo_transaksi
   for select
   using (id_pengguna = auth.uid() or public.is_admin());
 
 -- Insert, Update, Delete langsung DILARANG untuk klien. Hanya boleh lewat SECURITY DEFINER RPC!
+drop policy if exists "saldo_transaksi_no_direct_insert" on public.saldo_transaksi;
 create policy "saldo_transaksi_no_direct_insert" on public.saldo_transaksi
   for insert
   with check (false);
 
+drop policy if exists "saldo_transaksi_no_direct_update" on public.saldo_transaksi;
 create policy "saldo_transaksi_no_direct_update" on public.saldo_transaksi
   for update
   using (false);
 
+drop policy if exists "saldo_transaksi_no_direct_delete" on public.saldo_transaksi;
 create policy "saldo_transaksi_no_direct_delete" on public.saldo_transaksi
   for delete
   using (false);
@@ -500,11 +533,13 @@ create policy "saldo_transaksi_no_direct_delete" on public.saldo_transaksi
 -- ==============================================================================
 -- POLICY: MITRA PENGEPUL & DISTRIBUSI (Hanya Admin)
 -- ==============================================================================
+drop policy if exists "mitra_pengepul_admin_only" on public.mitra_pengepul;
 create policy "mitra_pengepul_admin_only" on public.mitra_pengepul
   for all
   using (public.is_admin())
   with check (public.is_admin());
 
+drop policy if exists "distribusi_mitra_admin_only" on public.distribusi_mitra;
 create policy "distribusi_mitra_admin_only" on public.distribusi_mitra
   for all
   using (public.is_admin())

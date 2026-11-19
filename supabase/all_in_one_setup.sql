@@ -690,6 +690,7 @@ end;
 $$;
 
 -- 6. RPC Petugas: Proses Penimbangan Sampah (Transaksi Atomik + Snapshot Harga)
+drop function if exists public.proses_penimbangan(uuid, jsonb);
 create or replace function public.proses_penimbangan(
   p_id_laporan uuid,
   p_detail jsonb,
@@ -813,6 +814,7 @@ end;
 $$;
 
 -- 7. RPC Warga: Pengajuan Penarikan Saldo / Potong Iuran (Dengan Verifikasi PIN & Keterangan)
+drop function if exists public.ajukan_penarikan(numeric, public.tujuan_penarikan, text);
 create or replace function public.ajukan_penarikan(
   p_jumlah numeric,
   p_tujuan public.tujuan_penarikan,
@@ -869,6 +871,7 @@ end;
 $$;
 
 -- 8. RPC Petugas: Proses Penarikan Saldo (Selesai dengan Bukti Transfer atau Ditolak)
+drop function if exists public.proses_penarikan(uuid, public.status_penarikan, text);
 create or replace function public.proses_penarikan(
   p_id_penarikan uuid,
   p_status public.status_penarikan,

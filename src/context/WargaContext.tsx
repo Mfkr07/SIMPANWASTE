@@ -18,6 +18,7 @@ import {
   WithdrawalRequest,
   withdrawalRequestsSeed,
 } from "@/data/wargaSeedData";
+import { mapDbReportToUi, mapDbWithdrawalToUi } from "@/lib/utils/reportMapper";
 
 interface WargaContextType {
   citizenProfile: UserProfile;
@@ -37,11 +38,11 @@ interface WargaContextType {
   user: any;
   handleLogout: () => Promise<void>;
   isLoading: boolean;
+  refreshData: () => Promise<void>;
 }
 
 const WargaContext = createContext<WargaContextType | null>(null);
 
-// Standard seed accounts profile fallback
 const seedProfiles: Record<string, UserProfile> = {
   "ayu.lestari": {
     name: "Ayu Lestari",
@@ -82,75 +83,9 @@ function readStoredUser(): UserProfile | null {
   return null;
 }
 
-function getInitialReportsForUser(username: string, fullName: string): Report[] {
-  if (typeof window !== "undefined") {
-    try {
-      const saved = localStorage.getItem(`simpanwaste_reports_${username}`);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-  }
-
-  const normalizedUser = (username || "").toLowerCase();
-  const normalizedName = (fullName || "").toLowerCase();
-
-  return initialReports.filter((r) => {
-    const c = (r.citizen || "").toLowerCase();
-    return c === normalizedName || c === normalizedUser;
-  });
-}
-
-function getInitialBalanceForUser(username: string): number {
-  if (typeof window !== "undefined") {
-    try {
-      const saved = localStorage.getItem(`simpanwaste_balance_${username}`);
-      if (saved !== null && !isNaN(Number(saved))) return Number(saved);
-    } catch {}
-  }
-
-  if (username === "ayu.lestari") return 184600;
-  if (username === "budi.s") return 48000;
-  if (username === "siti.rahma") return 62500;
-  return 0;
-}
-
-function getInitialTransactionsForUser(username: string) {
-  if (typeof window !== "undefined") {
-    try {
-      const saved = localStorage.getItem(`simpanwaste_transactions_${username}`);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-  }
-
-  if (username === "ayu.lestari") return transactionsSeed;
-  if (username === "budi.s")
-    return [
-      { date: "16 Mar 2025", type: "Setoran", weight: "4 kg", value: 11200, balance: 48000 },
-      { date: "02 Mar 2025", type: "Setoran", weight: "12 kg", value: 36800, balance: 36800 },
-    ];
-  if (username === "siti.rahma")
-    return [
-      { date: "08 Mar 2025", type: "Setoran", weight: "7 kg", value: 14080, balance: 62500 },
-    ];
-  return [];
-}
-
-function getInitialWithdrawalsForUser(username: string): WithdrawalRequest[] {
-  if (typeof window !== "undefined") {
-    try {
-      const saved = localStorage.getItem(`simpanwaste_withdrawals_${username}`);
-      if (saved) return JSON.parse(saved);
-    } catch {}
-  }
-
-  return withdrawalRequestsSeed.filter(
-    (w) => (w.citizenId || "").toLowerCase() === (username || "").toLowerCase()
-  );
-}
-
 export function WargaProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
-  // Consistent initial state across SSR and initial client hydration
   const [citizenProfile, setCitizenProfileState] = useState<UserProfile>({
     name: "",
     username: "",
@@ -163,13 +98,12 @@ export function WargaProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactionsState] = useState<typeof transactionsSeed>([]);
   const [withdrawalRequests, setWithdrawalRequestsState] = useState<WithdrawalRequest[]>([]);
 
-  const [categories] = useState(categoriesSeed);
-  const [minPickup] = useState(5);
+  const [categories, setCategoriesState] = useState(categoriesSeed);
+  const [minPickup, setMinPickup] = useState(5);
   const [toast, setToast] = useState("");
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Wrapper setters that automatically persist to user-scoped localStorage
   const setCitizenProfile: React.Dispatch<React.SetStateAction<UserProfile>> = useCallback(
     (action) => {
       setCitizenProfileState((prev) => {
@@ -272,6 +206,65 @@ export function WargaProvider({ children }: { children: ReactNode }) {
       [citizenProfile.username]
     );
 
+  // Fungsi untuk refresh data dari Supabase API secara live
+  const refreshData = useCallback(async () => {
+    try {
+      // 1. Ambil Saldo & Transaksi dari Supabase
+      const saldoRes = await fetch("/api/saldo");
+      if (saldoRes.ok) {
+        const saldoData = await saldoRes.json();
+        if (typeof saldoData.saldo === "number") {
+          setBalanceState(saldoData.saldo);
+        }
+        if (Array.isArray(saldoData.transaksi) && saldoData.transaksi.length > 0) {
+          const mappedTx = saldoData.transaksi.map((t: any) => ({
+            date: new Intl.DateTimeFormat("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(t.tanggal)),
+            type: t.jenis === "setoran" ? "Setoran" : "Penarikan",
+            weight: t.penimbangan?.total_berat ? `${t.penimbangan.total_berat} kg` : "-",
+            value: Number(t.jumlah),
+            balance: Number(t.saldo),
+          }));
+          setTransactionsState(mappedTx);
+        }
+      }
+
+      // 2. Ambil Laporan Setoran dari Supabase
+      const laporanRes = await fetch("/api/laporan");
+      if (laporanRes.ok) {
+        const lapData = await laporanRes.json();
+        if (Array.isArray(lapData.data) && lapData.data.length > 0) {
+          const mappedReports = lapData.data.map(mapDbReportToUi);
+          setReportsState(mappedReports);
+        }
+      }
+
+      // 3. Ambil Permintaan Penarikan dari Supabase
+      const penarikanRes = await fetch("/api/penarikan");
+      if (penarikanRes.ok) {
+        const penData = await penarikanRes.json();
+        if (Array.isArray(penData.data) && penData.data.length > 0) {
+          const mappedWds = penData.data.map(mapDbWithdrawalToUi);
+          setWithdrawalRequestsState(mappedWds);
+        }
+      }
+
+      // 4. Ambil Batas Pickup Pengaturan Sistem
+      const setRes = await fetch("/api/pengaturan");
+      if (setRes.ok) {
+        const setData = await setRes.json();
+        if (setData.batas_minimum_pickup_kg) {
+          setMinPickup(Number(setData.batas_minimum_pickup_kg));
+        }
+      }
+    } catch (err) {
+      console.warn("Gagal refresh data live Supabase:", err);
+    }
+  }, []);
+
   // Sync with server session and populate exact user data
   useEffect(() => {
     let mounted = true;
@@ -279,22 +272,14 @@ export function WargaProvider({ children }: { children: ReactNode }) {
     // Check localStorage cache first
     const cached = readStoredUser();
     if (cached && cached.username) {
-      if (!citizenProfile.username || citizenProfile.username !== cached.username) {
-        setCitizenProfileState(cached);
-        setBalanceState(getInitialBalanceForUser(cached.username));
-        setReportsState(getInitialReportsForUser(cached.username, cached.name));
-        setTransactionsState(getInitialTransactionsForUser(cached.username));
-        setWithdrawalRequestsState(getInitialWithdrawalsForUser(cached.username));
-      }
+      setCitizenProfileState(cached);
       setIsLoading(false);
     }
 
     // Call /api/auth/me for live session check
     fetch("/api/auth/me")
       .then((res) => {
-        if (!res.ok) {
-          throw new Error("Unauthenticated");
-        }
+        if (!res.ok) throw new Error("Unauthenticated");
         return res.json();
       })
       .then((data) => {
@@ -311,19 +296,17 @@ export function WargaProvider({ children }: { children: ReactNode }) {
           };
 
           setCitizenProfileState(newProfile);
-          setBalanceState(getInitialBalanceForUser(username));
-          setReportsState(getInitialReportsForUser(username, newProfile.name));
-          setTransactionsState(getInitialTransactionsForUser(username));
-          setWithdrawalRequestsState(getInitialWithdrawalsForUser(username));
 
           try {
             localStorage.setItem("simpanwaste_user_session", JSON.stringify(data.user));
             localStorage.setItem("simpanwaste_active_user", username);
           } catch {}
+
+          // Panggil sinkronisasi data live
+          refreshData();
         }
       })
       .catch(() => {
-        // If not authenticated and no cached profile, redirect to login
         if (mounted && !cached?.username) {
           router.push("/login");
         }
@@ -335,7 +318,7 @@ export function WargaProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [router]);
+  }, [router, refreshData]);
 
   const notify = (text: string) => {
     setToast(text);
@@ -389,6 +372,7 @@ export function WargaProvider({ children }: { children: ReactNode }) {
         user,
         handleLogout,
         isLoading,
+        refreshData,
       }}
     >
       {children}
@@ -397,7 +381,9 @@ export function WargaProvider({ children }: { children: ReactNode }) {
 }
 
 export function useWarga() {
-  const ctx = useContext(WargaContext);
-  if (!ctx) throw new Error("useWarga must be used within a WargaProvider");
-  return ctx;
+  const context = useContext(WargaContext);
+  if (!context) {
+    throw new Error("useWarga must be used within a WargaProvider");
+  }
+  return context;
 }

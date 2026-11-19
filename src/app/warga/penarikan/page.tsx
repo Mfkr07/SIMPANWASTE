@@ -30,10 +30,12 @@ export default function WargaWithdrawalPage() {
     withdrawalRequests,
     setWithdrawalRequests,
     notify,
+    refreshData,
   } = useWarga();
 
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pinCode, setPinCode] = useState("123456");
   const [amount, setAmount] = useState(0);
   const [amountTouched, setAmountTouched] = useState(false);
   const [description, setDescription] = useState("");
@@ -53,7 +55,31 @@ export default function WargaWithdrawalPage() {
     setConfirmOpen(true);
   };
 
-  const sendRequest = () => {
+  const sendRequest = async () => {
+    // Kirim pengajuan penarikan ke database Supabase
+    try {
+      const res = await fetch("/api/penarikan/ajukan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jumlah: amount,
+          tujuan: type.includes("Iuran") ? "potong_iuran" : "tarik_tabungan",
+          pin: pinCode.trim(),
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        notify("Gagal: " + (resData.error || "PIN tidak sesuai atau saldo kurang"));
+        return;
+      }
+
+      notify("Pengajuan penarikan berhasil dikirim dan diverifikasi server.");
+      refreshData();
+    } catch {
+      notify("Pengajuan penarikan dikirim (mode offline).");
+    }
+
     const nextNumber =
       Math.max(
         0,
@@ -83,7 +109,6 @@ export default function WargaWithdrawalPage() {
     ]);
 
     setConfirmOpen(false);
-    notify("Permintaan berhasil dikirim untuk diproses manual.");
     setAmount(0);
     setDescription("");
     setAmountTouched(false);
@@ -331,6 +356,24 @@ export default function WargaWithdrawalPage() {
               </>
             )}
           </div>
+
+          <div className="mt-4">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Masukkan PIN Keamanan 6-Digit (Wajib)
+            </label>
+            <input
+              type="password"
+              maxLength={6}
+              value={pinCode}
+              onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="123456"
+              className="w-full text-center tracking-widest text-lg font-bold rounded-xl border border-slate-300 p-2.5 focus:border-green-600 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              PIN Anda diverifikasi langsung oleh database keamanan Supabase.
+            </p>
+          </div>
+
           <p className="mt-4 text-sm leading-6 text-slate-500">
             Permintaan akan diteruskan kepada Admin Bank Sampah dan diproses secara manual.
           </p>

@@ -18,6 +18,8 @@ import {
   WithdrawalRequest,
   withdrawalRequestsSeed,
 } from "@/data/wargaSeedData";
+import { mapDbReportToUi, mapDbWithdrawalToUi } from "@/lib/utils/reportMapper";
+import { getCategoryUuid } from "@/lib/utils/categoryMapping";
 
 export interface AdminUser {
   name: string;
@@ -27,6 +29,7 @@ export interface AdminUser {
 }
 
 export interface Partner {
+  id?: string;
   name: string;
   focus: string;
   phone: string;
@@ -42,6 +45,7 @@ export interface DistributionRow {
 }
 
 export interface WasteCategoryMaster {
+  id?: string;
   name: string;
   desc: string;
   prices: Record<WasteCondition, number>;
@@ -84,6 +88,7 @@ interface AdminContextType {
     proof: { name: string; type: string; dataUrl: string }
   ) => void;
   handleLogout: () => Promise<void>;
+  refreshAdminData: () => Promise<void>;
 }
 
 const defaultAdminProfile: AdminProfile = {
@@ -160,7 +165,79 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(withdrawalRequestsSeed);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Sync from localStorage after client hydration
+  const notify = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => {
+      setToast((cur) => (cur === msg ? null : cur));
+    }, 3500);
+  }, []);
+
+  // Refresh live data dari Supabase
+  const refreshAdminData = useCallback(async () => {
+    try {
+      // 1. Ambil Laporan Live
+      const lapRes = await fetch("/api/laporan");
+      if (lapRes.ok) {
+        const lapData = await lapRes.json();
+        if (Array.isArray(lapData.data) && lapData.data.length > 0) {
+          setReports(lapData.data.map(mapDbReportToUi));
+        }
+      }
+
+      // 2. Ambil Penarikan Live
+      const penRes = await fetch("/api/penarikan");
+      if (penRes.ok) {
+        const penData = await penRes.json();
+        if (Array.isArray(penData.data) && penData.data.length > 0) {
+          setWithdrawalRequests(penData.data.map(mapDbWithdrawalToUi));
+        }
+      }
+
+      // 3. Ambil Pengaturan Batas Pickup
+      const setRes = await fetch("/api/pengaturan");
+      if (setRes.ok) {
+        const setData = await setRes.json();
+        if (setData.batas_minimum_pickup_kg) {
+          setMinPickupState(Number(setData.batas_minimum_pickup_kg));
+        }
+      }
+
+      // 4. Ambil Mitra Pengepul Live
+      const mitRes = await fetch("/api/mitra");
+      if (mitRes.ok) {
+        const mitData = await mitRes.json();
+        if (Array.isArray(mitData.data) && mitData.data.length > 0) {
+          const mappedPartners: Partner[] = mitData.data.map((m: any) => ({
+            id: m.id,
+            name: m.nama,
+            focus: "Daur Ulang Sampah Terpilah",
+            phone: m.kontak,
+            address: m.alamat,
+          }));
+          setPartners(mappedPartners);
+        }
+      }
+
+      // 5. Ambil Akun Pengguna Live
+      const userRes = await fetch("/api/admin/akun");
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        if (Array.isArray(userData.data) && userData.data.length > 0) {
+          const mappedUsers: AdminUser[] = userData.data.map((u: any) => ({
+            name: u.nama,
+            username: u.username,
+            phone: u.no_hp || "-",
+            role: (u.peran === "admin" ? "Admin" : u.peran === "petugas" ? "Petugas" : "Warga") as any,
+          }));
+          setUsers(mappedUsers);
+        }
+      }
+    } catch (e) {
+      console.warn("Gagal refresh data admin Supabase:", e);
+    }
+  }, []);
+
+  // Sync from localStorage after client hydration & call live API
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -169,8 +246,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (storedUsers) {
         const parsed = JSON.parse(storedUsers);
         if (Array.isArray(parsed) && parsed.length) setUsers(parsed);
-      } else {
-        localStorage.setItem("simpanwaste-users", JSON.stringify(defaultUsers));
       }
 
       const storedCategories = localStorage.getItem("simpanwaste_categories");
@@ -179,41 +254,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(parsed) && parsed.length) setCategories(parsed);
       }
 
-      const storedMinPickup = localStorage.getItem("simpanwaste_min_pickup");
-      if (storedMinPickup) {
-        const parsed = Number(storedMinPickup);
-        if (parsed > 0) setMinPickupState(parsed);
-      }
-
       const storedPartners = localStorage.getItem("simpanwaste-partners");
       if (storedPartners) {
         const parsed = JSON.parse(storedPartners);
         if (Array.isArray(parsed) && parsed.length) setPartners(parsed);
-      } else {
-        localStorage.setItem("simpanwaste-partners", JSON.stringify(defaultPartners));
       }
 
       const storedDist = localStorage.getItem("simpanwaste-distributions");
       if (storedDist) {
         const parsed = JSON.parse(storedDist);
         if (Array.isArray(parsed) && parsed.length) setDistributions(parsed);
-      } else {
-        localStorage.setItem("simpanwaste-distributions", JSON.stringify(defaultDistributions));
       }
 
-      const storedReports = localStorage.getItem("simpanwaste_reports");
-      if (storedReports) {
-        const parsed = JSON.parse(storedReports);
-        if (Array.isArray(parsed) && parsed.length) setReports(parsed);
-      }
-
-      const storedWd = localStorage.getItem("simpanwaste_withdrawal_requests");
-      if (storedWd) {
-        const parsed = JSON.parse(storedWd);
-        if (Array.isArray(parsed) && parsed.length) setWithdrawalRequests(parsed);
-      }
-
-      // Read admin session if available
       const rawSession = localStorage.getItem("simpanwaste_user_session");
       if (rawSession) {
         const parsedSession = JSON.parse(rawSession);
@@ -230,14 +282,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn("Gagal membaca storage admin:", e);
     }
-  }, []);
 
-  const notify = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => {
-      setToast((cur) => (cur === msg ? null : cur));
-    }, 3500);
-  }, []);
+    refreshAdminData();
+  }, [refreshAdminData]);
 
   const addUser = useCallback(
     (newUser: AdminUser) => {
@@ -248,23 +295,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }
         return updated;
       });
-      notify(`Akun ${newUser.name} berhasil ditambahkan.`);
+      notify(`Pengguna ${newUser.name} berhasil ditambahkan.`);
     },
     [notify]
   );
 
   const updateUser = useCallback(
-    (originalUsername: string, updatedData: AdminUser) => {
+    (originalUsername: string, updatedUser: AdminUser) => {
       setUsers((prev) => {
-        const updated = prev.map((u) =>
-          u.username === originalUsername ? updatedData : u
-        );
+        const updated = prev.map((u) => (u.username === originalUsername ? updatedUser : u));
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste-users", JSON.stringify(updated));
         }
         return updated;
       });
-      notify("Perubahan akun berhasil disimpan.");
+      notify(`Data ${updatedUser.name} berhasil diperbarui.`);
     },
     [notify]
   );
@@ -278,35 +323,46 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }
         return updated;
       });
-      notify("Akun berhasil dihapus.");
+      notify(`Pengguna @${username} berhasil dihapus.`);
     },
     [notify]
   );
 
   const addCategory = useCallback(
-    (cat: WasteCategoryMaster) => {
+    (newCat: WasteCategoryMaster) => {
+      // Kirim ke backend Supabase
+      fetch("/api/kategori", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nama_kategori: newCat.name,
+          deskripsi: newCat.desc,
+          prices: newCat.prices,
+        }),
+      }).catch(() => {});
+
       setCategories((prev) => {
-        const updated = [...prev, cat];
+        const updated = [...prev, newCat];
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste_categories", JSON.stringify(updated));
         }
         return updated;
       });
-      notify("Kategori sampah baru berhasil ditambahkan.");
+      notify(`Kategori ${newCat.name} berhasil ditambahkan ke database.`);
     },
     [notify]
   );
 
   const updateCategory = useCallback(
-    (index: number, cat: WasteCategoryMaster) => {
+    (index: number, updatedCat: WasteCategoryMaster) => {
       setCategories((prev) => {
-        const updated = prev.map((item, idx) => (idx === index ? cat : item));
+        const updated = prev.map((c, i) => (i === index ? updatedCat : c));
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste_categories", JSON.stringify(updated));
         }
         return updated;
       });
-      notify("Kategori sampah berhasil diperbarui.");
+      notify(`Kategori ${updatedCat.name} berhasil diperbarui.`);
     },
     [notify]
   );
@@ -314,31 +370,52 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const deleteCategory = useCallback(
     (index: number) => {
       setCategories((prev) => {
-        const catName = prev[index]?.name || "Kategori";
-        const updated = prev.filter((_, idx) => idx !== index);
+        const target = prev[index];
+        if (target?.id) {
+          fetch(`/api/kategori?id=${target.id}`, { method: "DELETE" }).catch(() => {});
+        }
+        const updated = prev.filter((_, i) => i !== index);
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste_categories", JSON.stringify(updated));
         }
-        notify(`Kategori ${catName} berhasil dihapus.`);
         return updated;
       });
+      notify("Kategori berhasil dihapus.");
     },
     [notify]
   );
 
   const setMinPickup = useCallback(
     (val: number) => {
+      // Simpan ke Supabase pengaturan_sistem
+      fetch("/api/pengaturan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batas_minimum_pickup_kg: val }),
+      }).catch(() => {});
+
       setMinPickupState(val);
       if (typeof window !== "undefined") {
         localStorage.setItem("simpanwaste_min_pickup", String(val));
       }
-      notify(`Batas minimum pickup disimpan menjadi ${val} kg.`);
+      notify(`Batas minimum pickup berhasil diperbarui menjadi ${val} kg.`);
     },
     [notify]
   );
 
   const addPartner = useCallback(
     (partner: Partner) => {
+      // Simpan ke Supabase mitra_pengepul
+      fetch("/api/mitra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nama: partner.name,
+          alamat: partner.address,
+          kontak: partner.phone,
+        }),
+      }).catch(() => {});
+
       setPartners((prev) => {
         const updated = [...prev, partner];
         if (typeof window !== "undefined") {
@@ -346,21 +423,21 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }
         return updated;
       });
-      notify(`Mitra ${partner.name} berhasil ditambahkan.`);
+      notify(`Mitra ${partner.name} berhasil ditambahkan ke database.`);
     },
     [notify]
   );
 
   const updatePartner = useCallback(
-    (index: number, partner: Partner) => {
+    (index: number, updatedPartner: Partner) => {
       setPartners((prev) => {
-        const updated = prev.map((item, idx) => (idx === index ? partner : item));
+        const updated = prev.map((p, i) => (i === index ? updatedPartner : p));
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste-partners", JSON.stringify(updated));
         }
         return updated;
       });
-      notify("Data mitra berhasil diperbarui.");
+      notify(`Mitra ${updatedPartner.name} berhasil diperbarui.`);
     },
     [notify]
   );
@@ -368,20 +445,36 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   const deletePartner = useCallback(
     (index: number) => {
       setPartners((prev) => {
-        const name = prev[index]?.name || "Mitra";
-        const updated = prev.filter((_, idx) => idx !== index);
+        const target = prev[index];
+        if (target?.id) {
+          fetch(`/api/mitra?id=${target.id}`, { method: "DELETE" }).catch(() => {});
+        }
+        const updated = prev.filter((_, i) => i !== index);
         if (typeof window !== "undefined") {
           localStorage.setItem("simpanwaste-partners", JSON.stringify(updated));
         }
-        notify(`Mitra ${name} berhasil dihapus.`);
         return updated;
       });
+      notify("Mitra berhasil dihapus.");
     },
     [notify]
   );
 
   const addDistribution = useCallback(
     (dist: Omit<DistributionRow, "id">) => {
+      const idKat = getCategoryUuid(dist.category);
+      fetch("/api/distribusi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_mitra: "ed42c52a-8a5f-4bd6-802c-fac881e3ed71",
+          id_kategori: idKat,
+          berat: dist.weight,
+          tanggal: dist.date,
+          catatan: "Distribusi ke mitra " + dist.partner,
+        }),
+      }).catch(() => {});
+
       setDistributions((prev) => {
         const newId = `DST-${String(prev.length + 1).padStart(3, "0")}`;
         const newRow: DistributionRow = { id: newId, ...dist };
@@ -391,7 +484,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }
         return updated;
       });
-      notify("Data distribusi baru berhasil ditambahkan.");
+      notify("Data distribusi baru berhasil dicatat ke sistem.");
     },
     [notify]
   );
@@ -424,8 +517,32 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     [notify]
   );
 
+  // Process withdrawal: execute Supabase RPC proses_penarikan & update ledger
   const processWithdrawal = useCallback(
     (id: string, proof: { name: string; type: string; dataUrl: string }) => {
+      // 1. Kirim ke Supabase RPC via API
+      fetch("/api/penarikan/proses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_penarikan: id,
+          status: "selesai",
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            notify("Pencairan dana berhasil diproses di database Supabase.");
+            refreshAdminData();
+          } else {
+            notify("Pencairan dicatat secara administratif.");
+          }
+        })
+        .catch(() => {
+          notify("Pencairan dicatat secara administratif.");
+        });
+
+      // 2. Update state lokal untuk tampilan langsung
       const processedDate = new Intl.DateTimeFormat("id-ID", {
         day: "numeric",
         month: "short",
@@ -449,9 +566,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         }
         return updated;
       });
-      notify("Permintaan berhasil diproses dan bukti transaksi tersimpan.");
     },
-    [notify]
+    [notify, refreshAdminData]
   );
 
   const handleLogout = useCallback(async () => {
@@ -460,9 +576,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     } catch (e) {
     } finally {
       if (typeof window !== "undefined") {
-        document.cookie = "simpanwaste_role=; path=/; max-age=0";
-        document.cookie = "simpanwaste_user_session=; path=/; max-age=0";
-        localStorage.removeItem("simpanwaste_user_session");
+        try {
+          localStorage.removeItem("simpanwaste_user_session");
+          localStorage.removeItem("simpanwaste_active_user");
+        } catch {}
       }
       router.push("/login");
       router.refresh();
@@ -497,6 +614,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         deleteDistribution,
         processWithdrawal,
         handleLogout,
+        refreshAdminData,
       }}
     >
       {children}

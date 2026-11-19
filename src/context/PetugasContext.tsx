@@ -20,6 +20,8 @@ import {
   trackerTimestamp,
   money,
 } from "@/data/wargaSeedData";
+import { getCategoryUuid } from "@/lib/utils/categoryMapping";
+import { mapDbReportToUi } from "@/lib/utils/reportMapper";
 
 export interface OfficerProfile {
   name: string;
@@ -55,6 +57,7 @@ interface PetugasContextType {
     totalActualWeight: number,
     totalValue: number
   ) => void;
+  refreshReports: () => Promise<void>;
 }
 
 const PetugasContext = createContext<PetugasContextType | null>(null);
@@ -82,9 +85,7 @@ function readStoredOfficer(): OfficerProfile | null {
 export function PetugasProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
-  // Consistent baseline for SSR and client hydration
   const [officerProfile, setOfficerProfileState] = useState<OfficerProfile>(defaultOfficer);
-
   const [reports, setReportsState] = useState<Report[]>(initialReports);
   const [pickedUpReports, setPickedUpReportsState] = useState<string[]>([]);
   const [categories] = useState(categoriesSeed);
@@ -96,38 +97,32 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, []);
 
+  const refreshReports = useCallback(async () => {
+    try {
+      const res = await fetch("/api/laporan");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.data) && data.data.length > 0) {
+          const liveReports = data.data.map(mapDbReportToUi);
+          setReportsState(liveReports);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Gagal fetch laporan Supabase di PetugasContext:", e);
+    }
+  }, []);
+
   // Sync state on client mount from localStorage / live session
   useEffect(() => {
     let mounted = true;
 
-    // Check cached session
     const cachedUser = readStoredOfficer();
     if (cachedUser) {
       setOfficerProfileState(cachedUser);
     }
 
-    // Check cached reports
-    if (typeof window !== "undefined") {
-      try {
-        const savedReports = localStorage.getItem("simpanwaste_shared_reports");
-        if (savedReports) {
-          const parsed = JSON.parse(savedReports);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setReportsState(parsed);
-          }
-        }
-
-        const savedPickedUp = localStorage.getItem("simpanwaste_picked_up_reports");
-        if (savedPickedUp) {
-          const parsed = JSON.parse(savedPickedUp);
-          if (Array.isArray(parsed)) {
-            setPickedUpReportsState(parsed);
-          }
-        }
-      } catch {}
-    }
-
-    // Check live auth session from API
+    // Ambil sesi petugas dari server
     fetch("/api/auth/me")
       .then((res) => {
         if (!res.ok) throw new Error("Unauthenticated");
@@ -136,30 +131,27 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         if (!mounted) return;
         if (data.authenticated && data.user) {
-          if (data.user.peran === "petugas") {
-            const profile: OfficerProfile = {
+          if (data.user.peran === "petugas" || data.user.role === "petugas") {
+            setOfficerProfileState({
               name: data.user.nama || data.user.name || defaultOfficer.name,
               username: (data.user.username || defaultOfficer.username).toLowerCase(),
               phone: data.user.no_hp || data.user.phone || defaultOfficer.phone,
               address: data.user.alamat || data.user.address || defaultOfficer.address,
               role: "petugas",
-            };
-            setOfficerProfileState(profile);
-            try {
-              localStorage.setItem("simpanwaste_user_session", JSON.stringify(data.user));
-              localStorage.setItem("simpanwaste_active_user", profile.username);
-            } catch {}
+            });
           }
         }
       })
       .catch(() => {});
 
+    // Muat laporan live dari Supabase
+    refreshReports();
+
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshReports]);
 
-  // Update reports and persist
   const setReports: React.Dispatch<React.SetStateAction<Report[]>> = useCallback(
     (action) => {
       setReportsState((prev) => {
@@ -175,7 +167,6 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Update pickedUpReports and persist
   const setPickedUpReports: React.Dispatch<React.SetStateAction<string[]>> = useCallback(
     (action) => {
       setPickedUpReportsState((prev) => {
@@ -191,37 +182,6 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Update officer profile
-  const setOfficerProfile: React.Dispatch<React.SetStateAction<OfficerProfile>> = useCallback(
-    (action) => {
-      setOfficerProfileState((prev) => {
-        const next = typeof action === "function" ? action(prev) : action;
-        if (typeof window !== "undefined") {
-          try {
-            const raw = localStorage.getItem("simpanwaste_user_session");
-            const existing = raw ? JSON.parse(raw) : {};
-            const merged = {
-              ...existing,
-              nama: next.name,
-              name: next.name,
-              username: next.username,
-              no_hp: next.phone,
-              phone: next.phone,
-              alamat: next.address,
-              address: next.address,
-              peran: "petugas",
-            };
-            localStorage.setItem("simpanwaste_user_session", JSON.stringify(merged));
-            localStorage.setItem("simpanwaste_active_user", next.username);
-          } catch {}
-        }
-        return next;
-      });
-    },
-    []
-  );
-
-  // Add tracker stage to a report
   const addTrackerStage = useCallback(
     (reportId: string, stage: TrackerStage) => {
       setReports((prev) =>
@@ -241,7 +201,7 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
     [setReports]
   );
 
-  // Complete verification & credit citizen balance
+  // Complete verification: call Supabase RPC & credit balance
   const completeVerification = useCallback(
     (
       reportId: string,
@@ -250,6 +210,48 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
       totalValue: number
     ) => {
       let targetCitizen = "";
+
+      // 1. Kirim penimbangan ke Supabase RPC via API
+      const itemsPayload = verifiedItems.map((item) => {
+        const idKat = getCategoryUuid(item.category);
+        let kondisi: "bersih" | "kotor" | "tercampur_air" = "bersih";
+        const cond = (item.verifiedCondition || item.citizenConditions?.[0] || "").toLowerCase();
+        if (cond.includes("bersih") || cond.includes("sudah dipilah")) {
+          kondisi = "bersih";
+        } else if (cond.includes("kotor") || cond.includes("belum")) {
+          kondisi = "kotor";
+        } else {
+          kondisi = "tercampur_air";
+        }
+        return {
+          id_kategori: idKat,
+          berat_aktual: Number(item.actualWeight || 1),
+          kondisi,
+        };
+      });
+
+      fetch("/api/penimbangan/proses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_laporan: reportId,
+          items: itemsPayload,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            notify(`Penimbangan dicatat ke Supabase! Saldo baru nasabah: ${money(data.data?.saldo_baru ?? totalValue)}`);
+            refreshReports();
+          } else {
+            notify(`Hasil penimbangan disimpan: ${money(totalValue)}`);
+          }
+        })
+        .catch(() => {
+          notify(`Penimbangan disimpan secara lokal: ${money(totalValue)}`);
+        });
+
+      // 2. Update state lokal untuk tampilan instan
       setReports((prev) =>
         prev.map((item) => {
           if (item.id !== reportId) return item;
@@ -277,33 +279,10 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
           };
         })
       );
-
-      // If citizen balance cache exists, update it
-      if (typeof window !== "undefined" && targetCitizen) {
-        try {
-          const citizenKey =
-            targetCitizen.toLowerCase().includes("ayu")
-              ? "ayu.lestari"
-              : targetCitizen.toLowerCase().includes("budi")
-              ? "budi.s"
-              : targetCitizen.toLowerCase().includes("siti")
-              ? "siti.rahma"
-              : "";
-          if (citizenKey) {
-            const rawBal = localStorage.getItem(`simpanwaste_balance_${citizenKey}`);
-            const curBal = rawBal !== null ? Number(rawBal) : 184600;
-            const newBal = curBal + totalValue;
-            localStorage.setItem(`simpanwaste_balance_${citizenKey}`, String(newBal));
-          }
-        } catch {}
-      }
-
-      notify(`Penimbangan selesai. Saldo ${money(totalValue)} berhasil diverifikasi.`);
     },
-    [notify, setReports]
+    [notify, refreshReports, setReports]
   );
 
-  // Logout handler
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -323,7 +302,7 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
     <PetugasContext.Provider
       value={{
         officerProfile,
-        setOfficerProfile,
+        setOfficerProfile: setOfficerProfileState,
         reports,
         setReports,
         pickedUpReports,
@@ -334,6 +313,7 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
         handleLogout,
         addTrackerStage,
         completeVerification,
+        refreshReports,
       }}
     >
       {children}

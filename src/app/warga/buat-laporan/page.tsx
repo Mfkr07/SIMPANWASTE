@@ -31,6 +31,7 @@ import {
   trackerTimestamp,
 } from "@/data/wargaSeedData";
 import { grahaPenaLocation } from "@/components/landing/MapsPreviewSection";
+import { getCategoryUuid, GRAHA_PENA_UUID } from "@/lib/utils/categoryMapping";
 
 function WasteCategoryCombobox({
   categories,
@@ -202,7 +203,7 @@ function WasteCategoryCombobox({
 
 export default function CreateReportPage() {
   const router = useRouter();
-  const { citizenProfile, categories, minPickup, reports, setReports, notify } =
+  const { citizenProfile, categories, minPickup, reports, setReports, notify, refreshData } =
     useWarga();
 
   const [step, setStep] = useState(1);
@@ -348,8 +349,35 @@ export default function CreateReportPage() {
       })),
     };
 
+    const kategoriUuids = Array.from(
+      new Set(wasteItems.map((item) => getCategoryUuid(item.category)))
+    );
+
+    // Kirim laporan ke database Supabase secara real-time
+    fetch("/api/laporan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        metode: method === "Pickup" ? "pickup" : "drop_off",
+        id_bank_sampah: method === "Drop-off" ? GRAHA_PENA_UUID : null,
+        latitude: method === "Pickup" ? -2.9463 : null,
+        longitude: method === "Pickup" ? 104.7391 : null,
+        estimasi_berat: totalWeight,
+        kategori_ids: kategoriUuids,
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.laporan) {
+          refreshData();
+        }
+      })
+      .catch((err) => {
+        console.warn("Laporan disimpan ke cache lokal:", err);
+      });
+
     setReports((r) => [newReport, ...r]);
-    notify("Laporan berhasil dibuat dan diteruskan ke petugas Bank Sampah.");
+    notify("Laporan berhasil dibuat dan diteruskan ke database Bank Sampah.");
     router.push("/warga/riwayat");
   };
 

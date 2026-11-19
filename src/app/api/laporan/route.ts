@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       .from("laporan_setoran")
       .select(`
         id,
+        id_pengguna,
         metode,
         id_bank_sampah,
         latitude,
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
         estimasi_berat,
         status,
         tanggal_lapor,
+        profil:id_pengguna (id, nama, username, no_hp, alamat),
         bank_sampah (id, nama, alamat),
         detail_setoran (
           id,

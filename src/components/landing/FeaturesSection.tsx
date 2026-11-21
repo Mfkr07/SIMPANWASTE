@@ -18,7 +18,7 @@ export default function FeaturesSection() {
     },
     {
       title: "Maps Bank Sampah",
-      desc: "Temukan lokasi, alamat, dan jam operasional bank sampah yang tersedia.",
+      desc: "Informasi lokasi, rute, dan jam operasional resmi Bank Sampah Graha Pena.",
       icon: MapPin,
       tone: "bg-amber-50 text-amber-700",
     },

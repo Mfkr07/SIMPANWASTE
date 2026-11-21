@@ -38,9 +38,9 @@ export default function MapsPreviewSection() {
             Temukan lokasi penyetoran di Palembang
           </h2>
           <p className="mt-5 text-base leading-8 text-slate-600">
-            Bank Sampah Graha Pena merupakan pusat operasional dan mitra kerja sama utama
-            SIMPANWASTE di Kota Palembang. Kunjungi lokasi kami untuk melakukan penyetoran
-            sampah anorganik terpilah, penimbangan langsung, dan pencatatan saldo tabungan Anda.
+            Bank Sampah Graha Pena merupakan pusat operasional resmi SIMPANWASTE di Kota Palembang.
+            Kunjungi lokasi kami untuk melakukan penyetoran sampah anorganik terpilah,
+            penimbangan langsung, dan pencatatan saldo tabungan Anda.
           </p>
         </div>
 
@@ -56,7 +56,7 @@ export default function MapsPreviewSection() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center rounded-full bg-green-800 px-2.5 py-1 text-[11px] font-extrabold tracking-wide text-white">
-                      Mitra Utama SIMPANWASTE
+                      Pusat Operasional SIMPANWASTE
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">
                       <span className="h-2 w-2 rounded-full bg-green-600 animate-pulse" />

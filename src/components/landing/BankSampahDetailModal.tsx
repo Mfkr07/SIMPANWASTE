@@ -64,16 +64,13 @@ export default function BankSampahDetailModal({
 
           {/* Badges Row */}
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            {item.is_utama ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-emerald-300 border border-white/20">
-                Sentra Utama Palembang
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span>{item.status}</span>
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-emerald-300 border border-white/20">
+              Pusat Operasional Resmi
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>{item.status}</span>
+            </span>
             <span className="text-xs text-emerald-200 font-medium">
               Kec. {item.kecamatan}
             </span>

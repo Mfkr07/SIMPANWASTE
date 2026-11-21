@@ -104,7 +104,7 @@ export async function POST(request: Request) {
       if (estimasi_berat < batasMin) {
         return NextResponse.json(
           {
-            error: `Estimasi berat (${estimasi_berat} kg) di bawah batas minimum penjemputan (${batasMin} kg). Silakan gunakan metode Drop-off ke bank sampah terdekat.`,
+            error: `Estimasi berat (${estimasi_berat} kg) di bawah batas minimum penjemputan (${batasMin} kg). Silakan gunakan metode Drop-off langsung ke Bank Sampah Graha Pena.`,
           },
           { status: 400 }
         );

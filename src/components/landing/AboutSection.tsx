@@ -58,7 +58,7 @@ export default function AboutSection() {
           </p>
           <p className="mt-5 max-w-xl text-base leading-8 text-slate-600">
             Melalui satu platform, warga dapat memperoleh informasi pemilahan sampah, mengetahui
-            lokasi bank sampah aktif, serta memantau hasil penyetoran mereka. Sistem ini juga
+            jadwal operasional Bank Sampah Graha Pena, serta memantau hasil penyetoran mereka. Sistem ini juga
             membantu petugas dalam pencatatan penimbangan dan membantu pengelola memantau data
             sampah terkumpul.
           </p>

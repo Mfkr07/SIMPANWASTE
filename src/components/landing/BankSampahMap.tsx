@@ -64,7 +64,7 @@ export default function BankSampahMap({
               <!-- Label Tag -->
               <div class="whitespace-nowrap px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#153626] text-white border border-emerald-500/40 shadow-md flex items-center gap-1.5 mb-1.5 transition-transform group-hover:scale-105">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>Graha Pena &bull; Sentra Utama</span>
+                <span>Bank Sampah Graha Pena</span>
               </div>
               
               <!-- Clean Pin Body -->
@@ -117,7 +117,7 @@ export default function BankSampahMap({
               ? `
             <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-[#153626] border border-emerald-200 mb-2">
               <span class="w-1.5 h-1.5 rounded-full bg-[#1E7E48]"></span>
-              <span>Sentra Utama</span>
+              <span>Pusat Operasional</span>
             </div>
             `
               : `
@@ -229,15 +229,7 @@ export default function BankSampahMap({
           className="bg-white/95 hover:bg-white text-gray-800 border border-gray-200/90 shadow-sm px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-2 cursor-pointer backdrop-blur-sm"
         >
           <span className="w-2 h-2 rounded-full bg-[#1E7E48]"></span>
-          <span>Fokus ke Graha Pena</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleFitAll}
-          className="bg-white/95 hover:bg-white text-gray-700 border border-gray-200/90 shadow-sm px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-sm"
-        >
-          <span>Tampilkan Semua Lokasi</span>
+          <span>Fokus ke Bank Sampah Graha Pena</span>
         </button>
       </div>
 
@@ -247,11 +239,7 @@ export default function BankSampahMap({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="w-3.5 h-3.5 rounded-md bg-[#153626] border border-emerald-500 inline-block"></span>
-              <span className="font-semibold text-gray-900">Graha Pena (Sentra Utama)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-white border-2 border-[#1E7E48] inline-block"></span>
-              <span className="text-gray-600">Bank Sampah Wilayah</span>
+              <span className="font-semibold text-gray-900">Bank Sampah Graha Pena (Sentra Operasional)</span>
             </div>
           </div>
 

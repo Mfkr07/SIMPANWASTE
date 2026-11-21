@@ -9,10 +9,23 @@ export const createLaporanSchema = z
     estimasi_berat: z.number().positive("Estimasi berat harus lebih dari 0 kg"),
     catatan_lokasi: z.string().optional().nullable(),
     pickupLocation: z.string().optional().nullable(),
-    kategori_ids: z.array(z.string().uuid()).min(1, "Pilih minimal 1 kategori sampah"),
+    kategori_ids: z.array(z.string().uuid()).optional(),
+    kategori_items: z
+      .array(
+        z.object({
+          id_kategori: z.string().uuid("ID Kategori tidak valid"),
+          kondisi: z.enum(["bersih", "kotor", "tercampur_air"]).optional(),
+          conditions: z.array(z.string()).optional(),
+        })
+      )
+      .optional(),
   })
   .refine(
     (data) => {
+      const hasCategories =
+        (data.kategori_items && data.kategori_items.length > 0) ||
+        (data.kategori_ids && data.kategori_ids.length > 0);
+      if (!hasCategories) return false;
       if (data.metode === "drop_off") {
         return !!data.id_bank_sampah;
       }

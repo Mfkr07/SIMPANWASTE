@@ -70,10 +70,10 @@ export default function AdminMasterPage() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatDesc, setNewCatDesc] = useState("");
   const [newCatPrices, setNewCatPrices] = useState<Record<WasteCondition, number>>({
-    "Sudah dipilah": 3000,
-    "Sudah dibersihkan": 3000,
+    "Sudah dipilah": 3800,
+    "Sudah dibersihkan": 3200,
+    "Belum dipilah dan dibersihkan": 2500,
     "Tidak mudah didaur ulang": 1500,
-    "Belum dipilah dan dibersihkan": 1500,
   });
 
   // Partner Modals

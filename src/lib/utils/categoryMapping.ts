@@ -10,7 +10,13 @@ export const DB_CATEGORIES: Record<string, string> = {
 
 export function getCategoryUuid(name: string): string {
   const n = (name || "").toLowerCase();
-  if (n.includes("kaca") || n.includes("botol kaca") || n.includes("toples")) {
+  if (
+    n.includes("kaca") ||
+    n.includes("botol kaca") ||
+    n.includes("toples") ||
+    n.includes("sirup") ||
+    n.includes("saus")
+  ) {
     return DB_CATEGORIES.Kaca;
   }
   if (
@@ -18,7 +24,9 @@ export function getCategoryUuid(name: string): string {
     n.includes("pet") ||
     n.includes("hdpe") ||
     n.includes("gelas") ||
-    n.includes("ember")
+    n.includes("ember") ||
+    n.includes("minyak") ||
+    n.includes("jelantah")
   ) {
     return DB_CATEGORIES.Plastik;
   }
@@ -27,7 +35,8 @@ export function getCategoryUuid(name: string): string {
     n.includes("kaleng") ||
     n.includes("logam") ||
     n.includes("seng") ||
-    n.includes("tembaga")
+    n.includes("tembaga") ||
+    n.includes("aluminium")
   ) {
     return DB_CATEGORIES.Besi;
   }

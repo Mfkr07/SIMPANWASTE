@@ -1064,7 +1064,7 @@ values
 on conflict (id_kategori, kondisi)
 do update set harga_per_kg = excluded.harga_per_kg, updated_at = now();
 
--- 4. Bank Sampah (Mitra Utama & Lokasi Studi + Demo Palembang)
+-- 4. Bank Sampah (Sentra Operasional Graha Pena Palembang)
 insert into public.bank_sampah (id, nama, alamat, latitude, longitude, jam_operasional, is_aktif, is_demo)
 values
   (
@@ -1076,26 +1076,6 @@ values
     'Senin - Sabtu: 08.00 - 16.00 WIB',
     true,
     false
-  ),
-  (
-    '22222222-2222-2222-2222-222222222202',
-    'Bank Sampah Berkah Ilir Barat (Demo)',
-    'Jl. Demang Lebar Daun No. 12, Ilir Barat I, Kota Palembang',
-    -2.9750000,
-    104.7300000,
-    'Senin - Jumat: 08.30 - 15.30 WIB',
-    true,
-    true
-  ),
-  (
-    '22222222-2222-2222-2222-222222222203',
-    'Bank Sampah Sukarami Mandiri (Demo)',
-    'Jl. Sukabangun II No. 88, Sukarami, Kota Palembang',
-    -2.9320000,
-    104.7450000,
-    'Selasa - Minggu: 09.00 - 16.00 WIB',
-    true,
-    true
   )
 on conflict do nothing;
 

@@ -22,7 +22,7 @@ export default function WargaMapsPage() {
     <div className="space-y-6">
       <PageTitle
         title="Maps Bank Sampah"
-        desc="Lokasi bank sampah aktif dan terverifikasi di area pilot Palembang."
+        desc="Lokasi operasional resmi Bank Sampah Graha Pena Palembang."
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_.75fr] items-start">
@@ -38,7 +38,7 @@ export default function WargaMapsPage() {
             />
             {/* Floating Info Tag di Bawah Peta */}
             <div className="absolute bottom-4 left-4 right-4 max-w-sm rounded-xl bg-white/95 p-4 shadow-lg backdrop-blur border border-slate-100">
-              <p className="text-xs font-bold text-green-700">Mitra Utama SIMPANWASTE</p>
+              <p className="text-xs font-bold text-green-700">Pusat Operasional SIMPANWASTE</p>
               <p className="mt-1 text-sm font-extrabold text-slate-900">
                 {grahaPenaLocation.name}
               </p>
@@ -61,7 +61,7 @@ export default function WargaMapsPage() {
                   <h3 className="text-sm font-extrabold text-slate-900">
                     {grahaPenaLocation.name}
                   </h3>
-                  <Badge tone="green">Mitra Utama SIMPANWASTE</Badge>
+                  <Badge tone="green">Pusat Operasional SIMPANWASTE</Badge>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-600">
                   {grahaPenaLocation.address}

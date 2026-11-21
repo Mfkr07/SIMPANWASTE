@@ -493,27 +493,6 @@ export const banks = [
     x: 48,
     y: 36,
   },
-  {
-    name: "Bank Sampah Sejahtera",
-    address: "Jl. Merdeka No. 24, Bukit Kecil",
-    hours: "Sen–Sab, 08.00–15.00",
-    x: 48,
-    y: 36,
-  },
-  {
-    name: "Bank Sampah Melati",
-    address: "Jl. Demang Lebar Daun, Ilir Barat I",
-    hours: "Sel–Min, 07.30–14.00",
-    x: 26,
-    y: 58,
-  },
-  {
-    name: "Bank Sampah Kalidoni Hijau",
-    address: "Jl. Mayor Zen No. 18, Kalidoni",
-    hours: "Sen–Jum, 08.00–16.00",
-    x: 73,
-    y: 50,
-  },
 ];
 
 export const education = [
@@ -587,7 +566,7 @@ export const education = [
       "https://images.unsplash.com/photo-1758599669406-d5179ccefcb9?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=1200",
     credit: "Vitaly Gariev / Unsplash",
     intro:
-      "SIMPANWASTE menyediakan dua metode penyetoran: penjemputan oleh petugas dan pengantaran langsung ke bank sampah aktif.",
+      "SIMPANWASTE menyediakan dua metode penyetoran: penjemputan oleh petugas dan pengantaran langsung (drop-off) ke Bank Sampah Graha Pena.",
     sections: [
       {
         heading: "Buat laporan setoran",
@@ -595,7 +574,7 @@ export const education = [
       },
       {
         heading: "Pilih pickup atau drop-off",
-        body: "Pickup tersedia apabila estimasi berat memenuhi batas minimum yang ditetapkan Admin. Jika belum memenuhi batas, pilih drop-off dan tentukan bank sampah tujuan.",
+        body: "Pickup tersedia apabila estimasi berat memenuhi batas minimum yang ditetapkan Admin. Jika belum memenuhi batas, pilih drop-off langsung ke Bank Sampah Graha Pena.",
       },
       {
         heading: "Serahkan untuk ditimbang",

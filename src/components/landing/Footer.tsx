@@ -31,7 +31,7 @@ export default function Footer() {
         </div>
         <div>
           <p className="font-extrabold text-green-300">Kontak & Layanan</p>
-          <p className="mt-4 text-xs leading-6">WhatsApp: +62 812-7128-799</p>
+          <p className="mt-4 text-xs leading-6">WhatsApp: +62 852-6700-2827 (Pak Martha)</p>
           <p className="text-xs leading-6">Kerja Sama: kemitraan@simpanwaste.id</p>
           <p className="text-xs leading-6">Jadwal: Senin–Jumat 09.00–16.00 WIB</p>
           <p className="mt-2 text-xs leading-6 text-green-200/80">Palembang, Sumatera Selatan</p>

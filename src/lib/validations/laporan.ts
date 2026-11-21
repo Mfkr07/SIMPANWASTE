@@ -46,5 +46,13 @@ export const createLaporanSchema = z
   );
 
 export const cancelLaporanSchema = z.object({
-  id_laporan: z.string().uuid("ID Laporan tidak valid"),
+  id_laporan: z.string().min(1, "ID Laporan tidak valid"),
+});
+
+export const updateLaporanSchema = z.object({
+  id_laporan: z.string().min(1, "ID Laporan wajib diisi"),
+  metode: z.enum(["pickup", "drop_off"]).optional(),
+  estimasi_berat: z.number().positive("Estimasi berat harus lebih dari 0 kg").optional(),
+  catatan_lokasi: z.string().optional().nullable(),
+  kategori_ids: z.array(z.string()).optional(),
 });

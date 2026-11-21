@@ -869,7 +869,7 @@ export default function CreateReportPage() {
                               {grahaPenaLocation.shortName}
                             </p>
                             <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[.1em] text-green-800">
-                              Mitra SIMPANWASTE
+                              Pusat Operasional
                             </span>
                           </div>
                           <p className="mt-3 text-sm leading-6 text-slate-600">

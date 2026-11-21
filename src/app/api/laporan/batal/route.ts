@@ -21,6 +21,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ID Laporan tidak valid" }, { status: 400 });
     }
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      validated.data.id_laporan
+    );
+
+    if (!isUuid) {
+      return NextResponse.json({
+        success: true,
+        message: "Laporan lokal berhasil dibatalkan",
+        data: null,
+      });
+    }
+
     const { data, error } = await supabase.rpc("batalkan_laporan", {
       p_id_laporan: validated.data.id_laporan,
     });

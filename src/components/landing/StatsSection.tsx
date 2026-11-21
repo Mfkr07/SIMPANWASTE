@@ -15,8 +15,8 @@ export default function StatsSection() {
       icon: ClipboardCheck,
     },
     {
-      value: "8 lokasi",
-      label: "Bank sampah aktif",
+      value: "1 Sentra",
+      label: "Pusat Bank Sampah Graha Pena",
       icon: Building2,
     },
   ];

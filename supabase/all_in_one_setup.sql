@@ -508,11 +508,11 @@ create policy "penarikan_update_policy" on public.penarikan_saldo
 -- ==============================================================================
 -- POLICY: SALDO_TRANSAKSI (MUTASI TABUNGAN)
 -- ==============================================================================
--- Warga hanya membaca riwayat miliknya sendiri. Admin membaca agregat via fungsi/dashboard.
+-- Warga hanya membaca riwayat miliknya sendiri. Petugas & Admin membaca riwayat semua nasabah.
 drop policy if exists "saldo_transaksi_select_policy" on public.saldo_transaksi;
 create policy "saldo_transaksi_select_policy" on public.saldo_transaksi
   for select
-  using (id_pengguna = auth.uid() or public.is_admin());
+  using (id_pengguna = auth.uid() or public.is_petugas_or_admin());
 
 -- Insert, Update, Delete langsung DILARANG untuk klien. Hanya boleh lewat SECURITY DEFINER RPC!
 drop policy if exists "saldo_transaksi_no_direct_insert" on public.saldo_transaksi;

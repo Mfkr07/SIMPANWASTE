@@ -8,7 +8,7 @@ import {
   Scale,
   Recycle,
 } from "lucide-react";
-import { PageTitle, Card, StatCard, Badge } from "@/components/warga/WargaUI";
+import { PageTitle, Card, StatCard, Badge, Pagination, usePagination } from "@/components/warga/WargaUI";
 import { useWarga } from "@/context/WargaContext";
 import { money } from "@/data/wargaSeedData";
 
@@ -34,6 +34,16 @@ export default function WargaBalancePage() {
       : transactions.length > 0 && citizenProfile.username === "ayu.lestari"
         ? "19,1 kg"
         : "0 kg";
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedTransactions,
+  } = usePagination(transactions, 10);
 
   return (
     <div className="space-y-6">
@@ -104,33 +114,36 @@ export default function WargaBalancePage() {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((t, i) => (
-                <tr
-                  key={i}
-                  className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
-                >
-                  <td className="px-4 py-3.5 align-middle text-slate-600 whitespace-nowrap">
-                    {t.date}
-                  </td>
-                  <td className="px-4 py-3.5 align-middle text-center whitespace-nowrap">
-                    <Badge tone={t.type === "Setoran" ? "green" : "amber"}>{t.type}</Badge>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle text-center font-medium text-slate-700 whitespace-nowrap">
-                    {t.weight}
-                  </td>
-                  <td
-                    className={`px-4 py-3.5 align-middle text-right font-bold whitespace-nowrap ${
-                      t.value > 0 ? "text-green-700" : "text-red-600"
-                    }`}
+              {paginatedTransactions.map((t, i) => {
+                const originalIndex = (currentPage - 1) * pageSize + i;
+                return (
+                  <tr
+                    key={originalIndex}
+                    className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
                   >
-                    {t.value > 0 ? "+" : ""}
-                    {money(t.value)}
-                  </td>
-                  <td className="px-4 py-3.5 align-middle text-right font-extrabold text-slate-900 whitespace-nowrap">
-                    {money(i === 0 ? balance : t.balance)}
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-4 py-3.5 align-middle text-slate-600 whitespace-nowrap">
+                      {t.date}
+                    </td>
+                    <td className="px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                      <Badge tone={t.type === "Setoran" ? "green" : "amber"}>{t.type}</Badge>
+                    </td>
+                    <td className="px-4 py-3.5 align-middle text-center font-medium text-slate-700 whitespace-nowrap">
+                      {t.weight}
+                    </td>
+                    <td
+                      className={`px-4 py-3.5 align-middle text-right font-bold whitespace-nowrap ${
+                        t.value > 0 ? "text-green-700" : "text-red-600"
+                      }`}
+                    >
+                      {t.value > 0 ? "+" : ""}
+                      {money(t.value)}
+                    </td>
+                    <td className="px-4 py-3.5 align-middle text-right font-extrabold text-slate-900 whitespace-nowrap">
+                      {money(originalIndex === 0 ? balance : t.balance)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {transactions.length === 0 && (
@@ -139,6 +152,16 @@ export default function WargaBalancePage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="transaksi"
+        />
       </Card>
     </div>
   );

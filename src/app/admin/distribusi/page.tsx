@@ -17,6 +17,8 @@ import {
   Field,
   Modal,
   StatCard,
+  Pagination,
+  usePagination,
 } from "@/components/admin/AdminUI";
 import {
   useAdmin,
@@ -32,6 +34,16 @@ export default function AdminDistribusiPage() {
     partners,
     categories,
   } = useAdmin();
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedDistributions,
+  } = usePagination(distributions, 10);
 
   const [addModal, setAddModal] = useState(false);
   const [editingRow, setEditingRow] = useState<DistributionRow | null>(null);
@@ -169,7 +181,7 @@ export default function AdminDistribusiPage() {
               </tr>
             </thead>
             <tbody>
-              {distributions.map((r) => (
+              {paginatedDistributions.map((r) => (
                 <tr
                   key={r.id}
                   className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
@@ -218,6 +230,16 @@ export default function AdminDistribusiPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="catatan distribusi"
+        />
       </Card>
 
       {/* Modal: Tambah Distribusi */}

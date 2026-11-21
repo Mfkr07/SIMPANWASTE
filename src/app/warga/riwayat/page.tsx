@@ -12,7 +12,15 @@ import {
   MapPin,
   MessageCircle,
 } from "lucide-react";
-import { PageTitle, Card, Badge, Button, Modal } from "@/components/warga/WargaUI";
+import {
+  PageTitle,
+  Card,
+  Badge,
+  Button,
+  Modal,
+  Pagination,
+  usePagination,
+} from "@/components/warga/WargaUI";
 import { useWarga } from "@/context/WargaContext";
 import { Report } from "@/data/wargaSeedData";
 import { DepositTracker } from "@/components/warga/DepositTracker";
@@ -57,6 +65,21 @@ export default function WargaReportsPage() {
 
     return matchesUser && matchesStatus && matchesSearch;
   });
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedData,
+    resetPage,
+  } = usePagination(data, 10);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, statusFilter, resetPage]);
 
   return (
     <div className="space-y-6">
@@ -157,7 +180,7 @@ export default function WargaReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {paginatedData.map((r) => (
                 <tr
                   key={r.id}
                   className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
@@ -208,6 +231,16 @@ export default function WargaReportsPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="laporan"
+        />
       </Card>
 
       {/* Detail Modal with Deposit Tracker */}

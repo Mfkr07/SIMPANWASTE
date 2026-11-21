@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   HandCoins,
   Clock3,
@@ -21,6 +21,8 @@ import {
   InfoRow,
   StatCard,
   StatusDropdown,
+  Pagination,
+  usePagination,
 } from "@/components/admin/AdminUI";
 import { useAdmin } from "@/context/AdminContext";
 import { WithdrawalRequest, money } from "@/data/wargaSeedData";
@@ -58,6 +60,21 @@ export default function AdminPermintaanPage() {
       r.type.toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedRequests,
+    resetPage,
+  } = usePagination(filteredRequests, 10);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, statusFilter, resetPage]);
 
   const chooseProof = (file?: File) => {
     setProofError("");
@@ -189,7 +206,7 @@ export default function AdminPermintaanPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredRequests.map((req) => (
+              {paginatedRequests.map((req) => (
                 <tr
                   key={req.id}
                   className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
@@ -259,6 +276,16 @@ export default function AdminPermintaanPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="permintaan penarikan"
+        />
       </Card>
 
       {/* Modal: Detail Permintaan */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { Plus, Pencil, Trash2, Check, ShieldAlert } from "lucide-react";
 import {
   PageTitle,
@@ -10,6 +10,8 @@ import {
   Field,
   Modal,
   StatusDropdown,
+  Pagination,
+  usePagination,
 } from "@/components/admin/AdminUI";
 import { useAdmin, AdminUser } from "@/context/AdminContext";
 
@@ -112,6 +114,21 @@ export default function AdminAkunPage() {
     (u) => roleFilter === "Semua" || u.role === roleFilter
   );
 
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedUsers,
+    resetPage,
+  } = usePagination(filteredUsers, 10);
+
+  useEffect(() => {
+    resetPage();
+  }, [roleFilter, resetPage]);
+
   return (
     <>
       <PageTitle
@@ -166,7 +183,7 @@ export default function AdminAkunPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
+              {paginatedUsers.map((u) => (
                 <tr
                   key={u.username}
                   className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
@@ -228,6 +245,16 @@ export default function AdminAkunPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="akun pengguna"
+        />
       </Card>
 
       {/* Modal: Tambah Akun Baru */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Truck, Scale, MessageCircle } from "lucide-react";
 import {
@@ -10,6 +10,8 @@ import {
   Badge,
   StatusDropdown,
   getWhatsAppUrl,
+  Pagination,
+  usePagination,
 } from "@/components/petugas/PetugasUI";
 import { usePetugas } from "@/context/PetugasContext";
 
@@ -41,6 +43,21 @@ export default function PetugasTugasPage() {
       return matchOfficer && matchStatus && matchSearch;
     });
   }, [reports, myName, status, search]);
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedAssigned,
+    resetPage,
+  } = usePagination(assigned, 10);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, status, resetPage]);
 
   const handleStartPickup = (reportId: string) => {
     fetch("/api/laporan/jemput", {
@@ -107,7 +124,7 @@ export default function PetugasTugasPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {assigned.map((report) => {
+              {paginatedAssigned.map((report) => {
                 const pickedUp = pickedUpReports.includes(report.id);
                 const needsPickup = report.method === "Pickup";
                 const pickupStarted =
@@ -254,6 +271,16 @@ export default function PetugasTugasPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="tugas laporan"
+        />
       </Card>
     </>
   );

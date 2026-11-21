@@ -13,6 +13,7 @@ import {
 } from "@/components/admin/AdminUI";
 import { useAdmin } from "@/context/AdminContext";
 import { Report } from "@/data/wargaSeedData";
+import { getWhatsAppUrl } from "@/components/petugas/PetugasUI";
 
 export default function AdminLaporanPage() {
   const { reports } = useAdmin();
@@ -169,15 +170,7 @@ export default function AdminLaporanPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-800">{selectedReport.phone}</span>
                     <a
-                      href={`https://wa.me/${
-                        selectedReport.phone.replace(/[^0-9]/g, "").startsWith("0")
-                          ? "62" + selectedReport.phone.replace(/[^0-9]/g, "").slice(1)
-                          : selectedReport.phone.replace(/[^0-9]/g, "").startsWith("62")
-                          ? selectedReport.phone.replace(/[^0-9]/g, "")
-                          : "62" + selectedReport.phone.replace(/[^0-9]/g, "")
-                      }?text=${encodeURIComponent(
-                        `Halo ${selectedReport.citizen}, terkait laporan setoran sampah SIMPANWASTE Anda (ID: ${selectedReport.id})...`
-                      )}`}
+                      href={getWhatsAppUrl(selectedReport, selectedReport.assigned || "Admin Graha Pena")}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-xs font-bold transition shadow-2xs"

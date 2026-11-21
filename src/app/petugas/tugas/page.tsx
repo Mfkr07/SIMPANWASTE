@@ -92,21 +92,21 @@ export default function PetugasTugasPage() {
         </div>
 
         <div className="table-wrap">
-          <table className="w-full min-w-[1360px] border-collapse text-left">
+          <table className="w-full min-w-[1200px] border-collapse text-left">
             <thead>
               <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
-                <th className="w-[125px] min-w-[125px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
-                <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
-                <th className="w-[170px] min-w-[160px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
-                <th className="w-[260px] min-w-[240px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Lokasi</th>
-                <th className="w-[220px] min-w-[200px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
-                <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Berat Estimasi</th>
-                <th className="w-[140px] min-w-[130px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Laporan</th>
-                <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Tugas</th>
-                <th className="w-[170px] min-w-[160px] px-4 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Aksi</th>
+                <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
+                <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+                <th className="w-[150px] min-w-[140px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
+                <th className="w-[280px] min-w-[240px] max-w-[320px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Lokasi</th>
+                <th className="w-[130px] min-w-[120px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
+                <th className="w-[95px] min-w-[85px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600 text-left">Estimasi</th>
+                <th className="w-[110px] min-w-[100px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Laporan</th>
+                <th className="w-[130px] min-w-[120px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Tugas</th>
+                <th className="w-[150px] min-w-[140px] px-3.5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-600">Aksi</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {assigned.map((report) => {
                 const pickedUp = pickedUpReports.includes(report.id);
                 const needsPickup = report.method === "Pickup";
@@ -116,31 +116,44 @@ export default function PetugasTugasPage() {
                   ) || false;
                 const hasValidPhone = report.phone && report.phone !== "-";
 
+                // Pisahkan alamat dan detail patokan jika ada
+                const locMatch = (report.location || "").match(/^(.*?)\s*\(Patokan:\s*(.*?)\)$/i);
+                const mainAddress = locMatch ? locMatch[1].trim() : report.location;
+                const landmark = locMatch ? locMatch[2].trim() : null;
+
                 return (
                   <tr
                     key={report.id}
-                    className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
+                    className="border-b border-slate-100 transition-colors hover:bg-slate-50/70"
                   >
-                    <td className="w-[125px] min-w-[125px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
-                      {report.id}
+                    <td className="w-[140px] min-w-[130px] px-3.5 py-3 align-top">
+                      <span
+                        className="font-mono text-xs font-bold text-green-700 tracking-tight break-all block leading-snug line-clamp-2 select-all"
+                        title={report.id}
+                      >
+                        {report.id}
+                      </span>
+                      <span className="inline-block mt-0.5 text-[10px] font-medium text-slate-400">
+                        Setoran
+                      </span>
                     </td>
-                    <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle">
-                      <p className="font-bold text-slate-900">{report.citizen}</p>
+                    <td className="w-[140px] min-w-[130px] px-3.5 py-3 align-top">
+                      <p className="font-bold text-slate-900 leading-snug">{report.citizen}</p>
                       <span className="inline-block mt-0.5 text-[11px] font-medium text-slate-400">
                         Nasabah Warga
                       </span>
                     </td>
-                    <td className="w-[170px] min-w-[160px] px-4 py-3.5 align-middle">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-xs font-semibold text-slate-800">
+                    <td className="w-[150px] min-w-[140px] px-3.5 py-3 align-top">
+                      <div className="flex flex-col gap-1.5 items-start">
+                        <span className="text-xs font-semibold text-slate-800 leading-tight">
                           {hasValidPhone ? report.phone : "Belum ada nomor"}
                         </span>
                         {hasValidPhone ? (
                           <a
-                            href={getWhatsAppUrl(report.phone, report.citizen, report.id)}
+                            href={getWhatsAppUrl(report, officerProfile.name || "Petugas")}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 w-fit rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1 text-[11px] font-bold shadow-2xs transition cursor-pointer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1 text-[11px] font-bold shadow-2xs transition cursor-pointer"
                             title={`Kirim pesan WhatsApp ke ${report.citizen}`}
                           >
                             <MessageCircle size={13} className="shrink-0" />
@@ -151,25 +164,34 @@ export default function PetugasTugasPage() {
                         )}
                       </div>
                     </td>
-                    <td className="w-[260px] min-w-[240px] max-w-[280px] px-4 py-3.5 align-middle">
-                      <div className="text-sm leading-relaxed text-slate-600 break-words whitespace-normal">
-                        {report.location}
+                    <td className="w-[280px] min-w-[240px] max-w-[320px] px-3.5 py-3 align-top">
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span className="leading-relaxed font-medium text-slate-700 break-words">
+                          {mainAddress}
+                        </span>
+                        {landmark && (
+                          <span className="inline-block w-fit rounded-md bg-amber-50 border border-amber-200/90 px-2 py-0.5 text-[11px] font-semibold text-amber-800 break-words leading-snug mt-0.5">
+                            📍 Patokan: {landmark}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="w-[240px] min-w-[220px] max-w-[260px] px-4 py-3.5 align-middle">
-                      <div className="text-sm font-medium leading-relaxed text-slate-800 break-words whitespace-normal">
+                    <td className="w-[130px] min-w-[120px] px-3.5 py-3 align-top">
+                      <span className="text-xs font-semibold leading-relaxed text-slate-800 break-words block">
                         {report.category}
-                      </div>
+                      </span>
                     </td>
-                    <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
-                      <span className="font-bold text-slate-900">{report.estimate} kg</span>
+                    <td className="w-[95px] min-w-[85px] px-3.5 py-3 align-top text-left whitespace-nowrap">
+                      <span className="inline-flex items-center rounded-md bg-slate-100 border border-slate-200/80 px-2 py-0.5 text-xs font-extrabold text-slate-800">
+                        {report.estimate} kg
+                      </span>
                     </td>
-                    <td className="w-[140px] min-w-[130px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                    <td className="w-[110px] min-w-[100px] px-3.5 py-3 align-top text-center whitespace-nowrap">
                       <Badge tone={report.status === "Selesai" ? "green" : "amber"}>
                         {report.status}
                       </Badge>
                     </td>
-                    <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                    <td className="w-[130px] min-w-[120px] px-3.5 py-3 align-top text-center whitespace-nowrap">
                       {report.status === "Selesai" ? (
                         <Badge tone="green">Tugas selesai</Badge>
                       ) : needsPickup ? (
@@ -192,7 +214,7 @@ export default function PetugasTugasPage() {
                         <Badge tone="blue">Drop-off diterima</Badge>
                       )}
                     </td>
-                    <td className="w-[170px] min-w-[160px] px-4 py-3.5 align-middle text-right whitespace-nowrap">
+                    <td className="w-[150px] min-w-[140px] px-3.5 py-3 align-top text-right whitespace-nowrap">
                       {report.status === "Selesai" ? (
                         <span className="text-xs font-semibold text-slate-400">
                           Selesai

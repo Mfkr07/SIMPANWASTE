@@ -43,13 +43,6 @@ export default function Navbar({ activePath = "/" }: { activePath?: string }) {
     { label: "About Us", href: "/about-us" },
   ];
 
-  const openWhatsApp = () => {
-    window.open(
-      "https://wa.me/628127128799?text=Halo%20Bank%20Sampah%20Graha%20Pena,%20saya%20ingin%20menyetor%20sampah",
-      "_blank"
-    );
-  };
-
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
@@ -82,13 +75,12 @@ export default function Navbar({ activePath = "/" }: { activePath?: string }) {
           >
             Masuk
           </Link>
-          <button
-            type="button"
-            onClick={openWhatsApp}
+          <Link
+            href="/register"
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-800 transition active:scale-[.98]"
           >
             Setor Sekarang
-          </button>
+          </Link>
         </div>
 
         {/* Mobile Hamburger Button */}
@@ -130,16 +122,13 @@ export default function Navbar({ activePath = "/" }: { activePath?: string }) {
             >
               Masuk
             </Link>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenu(false);
-                openWhatsApp();
-              }}
+            <Link
+              href="/register"
+              onClick={() => setMobileMenu(false)}
               className="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 transition shadow-sm"
             >
               Setor Sekarang
-            </button>
+            </Link>
           </div>
         </nav>
       </div>

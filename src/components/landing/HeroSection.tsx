@@ -7,7 +7,7 @@ import LandingIllustration from "./LandingIllustration";
 export default function HeroSection() {
   const openWhatsApp = () => {
     window.open(
-      "https://wa.me/628127128799?text=Halo%20Bank%20Sampah%20Graha%20Pena,%20saya%20ingin%20menyetor%20sampah",
+      "https://wa.me/6285267002827?text=Halo%20Pak%20Martha,%20saya%20ingin%20berkonsultasi%20mengenai%20Bank%20Sampah%20Graha%20Pena",
       "_blank"
     );
   };
@@ -38,7 +38,7 @@ export default function HeroSection() {
               onClick={openWhatsApp}
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-green-700 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-800 transition active:scale-[.98]"
             >
-              Setor via WhatsApp <ArrowRight size={18} />
+              Konsultasi Sekarang <ArrowRight size={18} />
             </button>
             <Link
               href="/alur-penyetoran"
@@ -56,7 +56,7 @@ export default function HeroSection() {
               <MapPin size={16} className="text-green-600 shrink-0" /> Jl. Kolonel H. Barlian KM.6,5 No.773, Alang-Alang Lebar, Palembang
             </span>
             <span className="flex items-center gap-2">
-              <Phone size={16} className="text-green-600 shrink-0" /> WhatsApp: +62 812-7128-799
+              <Phone size={16} className="text-green-600 shrink-0" /> WhatsApp: +62 852-6700-2827 (Pak Martha)
             </span>
           </div>
         </div>

@@ -16,6 +16,7 @@ import { PageTitle, Card, Badge, Button, Modal } from "@/components/warga/WargaU
 import { useWarga } from "@/context/WargaContext";
 import { Report } from "@/data/wargaSeedData";
 import { DepositTracker } from "@/components/warga/DepositTracker";
+import { getWhatsAppUrl } from "@/components/petugas/PetugasUI";
 
 export default function WargaReportsPage() {
   const { citizenProfile, reports, notify } = useWarga();
@@ -251,14 +252,6 @@ export default function WargaReportsPage() {
 
               if (row.isPhone) {
                 const phoneVal = selected.phone && selected.phone !== "-" ? selected.phone : null;
-                const cleanPhone = phoneVal ? phoneVal.replace(/[^0-9]/g, "") : "";
-                const formattedWa = cleanPhone
-                  ? cleanPhone.startsWith("0")
-                    ? "62" + cleanPhone.slice(1)
-                    : cleanPhone.startsWith("62")
-                    ? cleanPhone
-                    : "62" + cleanPhone
-                  : "";
 
                 return (
                   <div
@@ -267,11 +260,9 @@ export default function WargaReportsPage() {
                   >
                     <dt className="text-slate-500 font-medium">{row.label}</dt>
                     <dd className="text-right">
-                      {phoneVal && formattedWa ? (
+                      {phoneVal ? (
                         <a
-                          href={`https://wa.me/${formattedWa}?text=${encodeURIComponent(
-                            `Halo ${selected.citizen}, terkait laporan setoran sampah Anda (ID: ${selected.id})...`
-                          )}`}
+                          href={getWhatsAppUrl(selected, selected.assigned || "Petugas Lapangan")}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 active:scale-95 cursor-pointer"

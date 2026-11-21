@@ -55,7 +55,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-green-50/50">
-        © 2025 SIMPANWASTE. Sistem Pengelolaan Sampah Terintegrasi Bank Sampah Graha Pena Palembang.
+        © 2026 SIMPANWASTE. Sistem Pengelolaan Sampah Terintegrasi Bank Sampah Graha Pena Palembang.
       </div>
     </footer>
   );

@@ -54,6 +54,8 @@ export type Report = {
     actualWeight: number;
     verifiedCondition?: WasteCondition;
     verifiedConditions?: WasteCondition[];
+    tierLabel?: string;
+    tier?: number;
     weighingPhoto?: {
       name: string;
       type: string;
@@ -87,54 +89,188 @@ export const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+export interface ConditionPriceEvaluation {
+  tier: 1 | 2 | 3 | 4 | 5;
+  tierLabel: string;
+  pricePerKg: number;
+}
+
+export function evaluateConditionPrice(
+  category:
+    | {
+        clean?: number;
+        dirty?: number;
+        prices?: Record<WasteCondition, number>;
+        tierPrices?: {
+          tier1: number;
+          tier2: number;
+          tier3: number;
+          tier4: number;
+          tier5: number;
+        };
+      }
+    | undefined,
+  conditions: WasteCondition[]
+): ConditionPriceEvaluation {
+  const hasSorted = conditions.includes("Sudah dipilah");
+  const hasCleaned = conditions.includes("Sudah dibersihkan");
+  const hasUnrecyclable = conditions.includes("Tidak mudah didaur ulang");
+
+  // Aturan hierarki sesuai instruksi:
+  // 1. Jika "Tidak mudah didaur ulang" dipilih -> Tier 5 (paling rendah),
+  //    meskipun ia sudah dibersihkan dan dipilah atau tidak dibersihkan dan tidak dipilah.
+  // 2. Jika Sudah dipilah + Sudah dibersihkan -> Tier 1 (paling tinggi).
+  // 3. Jika Sudah dipilah saja (belum dibersihkan) -> Tier 2.
+  // 4. Jika Sudah dibersihkan saja (belum dipilah) -> Tier 3.
+  // 5. Belum dipilah dan belum dibersihkan -> Tier 4.
+
+  let tier: 1 | 2 | 3 | 4 | 5;
+  let tierLabel: string;
+
+  if (hasUnrecyclable) {
+    tier = 5;
+    tierLabel = "Tidak mudah didaur ulang";
+  } else if (hasSorted && hasCleaned) {
+    tier = 1;
+    tierLabel = "Sudah dipilah + sudah dibersihkan";
+  } else if (hasSorted && !hasCleaned) {
+    tier = 2;
+    tierLabel = "Sudah dipilah + belum dibersihkan";
+  } else if (hasCleaned && !hasSorted) {
+    tier = 3;
+    tierLabel = "Sudah dibersihkan belum dipilah";
+  } else {
+    tier = 4;
+    tierLabel = "Belum dipilah dan belum dibersihkan";
+  }
+
+  // Jika category memiliki tierPrices eksplisit
+  if (category?.tierPrices) {
+    const key = `tier${tier}` as keyof typeof category.tierPrices;
+    return {
+      tier,
+      tierLabel,
+      pricePerKg: category.tierPrices[key],
+    };
+  }
+
+  // Fallback adaptif jika kategori baru / custom
+  const cleanBase = category?.clean || category?.prices?.["Sudah dipilah"] || 3000;
+  const pDipilah = category?.prices?.["Sudah dipilah"];
+  const pDibersihkan = category?.prices?.["Sudah dibersihkan"];
+  const pBelum = category?.prices?.["Belum dipilah dan dibersihkan"];
+  const pTidakDaur = category?.prices?.["Tidak mudah didaur ulang"];
+
+  let pricePerKg: number;
+  if (tier === 1) {
+    pricePerKg = Math.max(cleanBase, (pDipilah || 0) * 1.15, (pDibersihkan || 0) * 1.25);
+    pricePerKg = Math.round(pricePerKg / 50) * 50;
+  } else if (tier === 2) {
+    pricePerKg = pDipilah || Math.round((cleanBase * 0.85) / 50) * 50;
+  } else if (tier === 3) {
+    const t2Price = pDipilah || Math.round((cleanBase * 0.85) / 50) * 50;
+    pricePerKg = pDibersihkan || Math.round((cleanBase * 0.70) / 50) * 50;
+    if (pricePerKg >= t2Price) {
+      pricePerKg = Math.max(t2Price - 100, Math.round((t2Price * 0.9) / 50) * 50);
+    }
+  } else if (tier === 4) {
+    const t3Price = pDibersihkan || Math.round((cleanBase * 0.70) / 50) * 50;
+    pricePerKg = pBelum || Math.round((cleanBase * 0.55) / 50) * 50;
+    if (pricePerKg >= t3Price) {
+      pricePerKg = Math.max(t3Price - 100, Math.round((t3Price * 0.85) / 50) * 50);
+    }
+  } else {
+    // tier 5
+    const t4Price = pBelum || Math.round((cleanBase * 0.55) / 50) * 50;
+    pricePerKg = pTidakDaur || Math.round((cleanBase * 0.35) / 50) * 50;
+    if (pricePerKg >= t4Price) {
+      pricePerKg = Math.max(t4Price - 100, Math.round((t4Price * 0.7) / 50) * 50);
+    }
+  }
+
+  return {
+    tier,
+    tierLabel,
+    pricePerKg,
+  };
+}
+
 export const categoriesSeed = [
   {
     name: "Botol Plastik PET",
     desc: "Botol minuman bening, bersih dan kering",
     clean: 4500,
-    dirty: 2800,
+    dirty: 2500,
     prices: {
-      "Sudah dipilah": 4500,
-      "Sudah dibersihkan": 4500,
-      "Tidak mudah didaur ulang": 2800,
-      "Belum dipilah dan dibersihkan": 2800,
+      "Sudah dipilah": 3800,
+      "Sudah dibersihkan": 3200,
+      "Belum dipilah dan dibersihkan": 2500,
+      "Tidak mudah didaur ulang": 1500,
     } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 4500,
+      tier2: 3800,
+      tier3: 3200,
+      tier4: 2500,
+      tier5: 1500,
+    },
   },
   {
     name: "Kardus",
     desc: "Kardus kering tanpa lapisan minyak",
     clean: 2800,
-    dirty: 1500,
+    dirty: 1400,
     prices: {
-      "Sudah dipilah": 2800,
-      "Sudah dibersihkan": 2800,
-      "Tidak mudah didaur ulang": 1500,
-      "Belum dipilah dan dibersihkan": 1500,
+      "Sudah dipilah": 2300,
+      "Sudah dibersihkan": 1900,
+      "Belum dipilah dan dibersihkan": 1400,
+      "Tidak mudah didaur ulang": 800,
     } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 2800,
+      tier2: 2300,
+      tier3: 1900,
+      tier4: 1400,
+      tier5: 800,
+    },
   },
   {
     name: "Kaleng Aluminium",
     desc: "Kaleng minuman dan kemasan aluminium",
     clean: 12000,
-    dirty: 8500,
+    dirty: 7500,
     prices: {
-      "Sudah dipilah": 12000,
-      "Sudah dibersihkan": 12000,
-      "Tidak mudah didaur ulang": 8500,
-      "Belum dipilah dan dibersihkan": 8500,
+      "Sudah dipilah": 10500,
+      "Sudah dibersihkan": 9000,
+      "Belum dipilah dan dibersihkan": 7500,
+      "Tidak mudah didaur ulang": 4500,
     } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 12000,
+      tier2: 10500,
+      tier3: 9000,
+      tier4: 7500,
+      tier5: 4500,
+    },
   },
   {
     name: "Kertas Campur",
     desc: "Kertas HVS, koran, dan majalah",
     clean: 2200,
-    dirty: 1200,
+    dirty: 1100,
     prices: {
-      "Sudah dipilah": 2200,
-      "Sudah dibersihkan": 2200,
-      "Tidak mudah didaur ulang": 1200,
-      "Belum dipilah dan dibersihkan": 1200,
+      "Sudah dipilah": 1800,
+      "Sudah dibersihkan": 1500,
+      "Belum dipilah dan dibersihkan": 1100,
+      "Tidak mudah didaur ulang": 600,
     } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 2200,
+      tier2: 1800,
+      tier3: 1500,
+      tier4: 1100,
+      tier5: 600,
+    },
   },
   {
     name: "Plastik Campur",
@@ -142,11 +278,56 @@ export const categoriesSeed = [
     clean: 1800,
     dirty: 900,
     prices: {
-      "Sudah dipilah": 1800,
-      "Sudah dibersihkan": 1800,
-      "Tidak mudah didaur ulang": 900,
+      "Sudah dipilah": 1500,
+      "Sudah dibersihkan": 1200,
       "Belum dipilah dan dibersihkan": 900,
+      "Tidak mudah didaur ulang": 500,
     } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 1800,
+      tier2: 1500,
+      tier3: 1200,
+      tier4: 900,
+      tier5: 500,
+    },
+  },
+  {
+    name: "Botol Sirup & Saus (Kaca)",
+    desc: "Botol sirup, kecap, saus, dan botol kaca bening/berwarna",
+    clean: 1500,
+    dirty: 800,
+    prices: {
+      "Sudah dipilah": 1300,
+      "Sudah dibersihkan": 1100,
+      "Belum dipilah dan dibersihkan": 800,
+      "Tidak mudah didaur ulang": 500,
+    } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 1500,
+      tier2: 1300,
+      tier3: 1100,
+      tier4: 800,
+      tier5: 500,
+    },
+  },
+  {
+    name: "Minyak Jelantah",
+    desc: "Minyak goreng bekas pemakaian rumah tangga atau usaha",
+    clean: 5500,
+    dirty: 3500,
+    prices: {
+      "Sudah dipilah": 4800,
+      "Sudah dibersihkan": 4200,
+      "Belum dipilah dan dibersihkan": 3500,
+      "Tidak mudah didaur ulang": 2000,
+    } as Record<WasteCondition, number>,
+    tierPrices: {
+      tier1: 5500,
+      tier2: 4800,
+      tier3: 4200,
+      tier4: 3500,
+      tier5: 2000,
+    },
   },
 ];
 

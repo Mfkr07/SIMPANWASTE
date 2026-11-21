@@ -25,6 +25,7 @@ import {
   Report,
   WasteCondition,
   wasteConditions,
+  evaluateConditionPrice,
   money,
 } from "@/data/wargaSeedData";
 
@@ -102,7 +103,7 @@ function VerificationContent() {
   // Extract categories inside selected report
   const reportItems = useMemo(() => {
     if (!report) return [];
-    if (report.verifiedItems?.length) {
+    if (report.status === "Selesai" && report.verifiedItems?.length) {
       return report.verifiedItems.map((item) => ({
         category: item.category,
         estimate: item.estimatedWeight,
@@ -110,7 +111,14 @@ function VerificationContent() {
       }));
     }
     if (report.categoryWeights?.length) return report.categoryWeights;
-    return [{ category: report.category, estimate: report.estimate, conditions: [] }];
+    if (report.verifiedItems?.length) {
+      return report.verifiedItems.map((item) => ({
+        category: item.category,
+        estimate: item.estimatedWeight,
+        conditions: item.citizenConditions,
+      }));
+    }
+    return [{ category: report.category, estimate: report.estimate, conditions: ["Sudah dipilah"] }];
   }, [report]);
 
   // Form states per report
@@ -135,10 +143,10 @@ function VerificationContent() {
 
       nextWeights[itemKey] = savedItem?.actualWeight ?? item.estimate;
       const initialConds = savedItem?.verifiedConditions?.length
-        ? [savedItem.verifiedConditions[0]]
+        ? savedItem.verifiedConditions
         : savedItem?.verifiedCondition
-        ? [savedItem.verifiedCondition]
-        : ["Sudah dipilah"];
+          ? [savedItem.verifiedCondition]
+          : ["Sudah dipilah"];
       nextConditions[itemKey] = initialConds as WasteCondition[];
       if (savedItem?.weighingPhoto) {
         nextPhotos[itemKey] = savedItem.weighingPhoto;
@@ -156,15 +164,17 @@ function VerificationContent() {
   const reportVerifiedConditions = verifiedConditions[selectedId] || {};
   const reportPhotos = photos[selectedId] || {};
 
-  // Compute subtotals and price per item
+  // Compute subtotals and price per item using the hierarchical evaluation
   const itemCalculations = reportItems.map((item, index) => {
     const itemKey = `${index}:${item.category}`;
     const category = categories.find((c) => c.name === item.category);
     const selectedConditionsList = reportVerifiedConditions[itemKey] || [];
-    const selectedPrices = category
-      ? selectedConditionsList.map((cond) => category.prices[cond]).filter(Boolean)
-      : [];
-    const price = selectedPrices.length ? Math.min(...selectedPrices) : category?.clean || 3000;
+
+    const evaluation = evaluateConditionPrice(category, selectedConditionsList);
+    const price = evaluation.pricePerKg;
+    const tierLabel = evaluation.tierLabel;
+    const tier = evaluation.tier;
+
     const actualWeight =
       reportActualWeights[itemKey] !== undefined ? reportActualWeights[itemKey] : item.estimate;
     const photo = reportPhotos[itemKey] || report?.verifiedItems?.[index]?.weighingPhoto;
@@ -174,6 +184,8 @@ function VerificationContent() {
       itemKey,
       actualWeight,
       verifiedConditions: selectedConditionsList,
+      tierLabel,
+      tier,
       weighingPhoto: photo,
       price,
       subtotal: (actualWeight || 0) * price,
@@ -199,11 +211,49 @@ function VerificationContent() {
     if (!report || !isReady || report.status === "Selesai") return;
     setVerifiedConditions((prev) => {
       const reportConds = prev[report.id] || {};
+      const currentList: WasteCondition[] = reportConds[itemKey] || [];
+      const isSelected = currentList.includes(condition);
+
+      let nextList: WasteCondition[];
+
+      if (condition === "Belum dipilah dan dibersihkan") {
+        if (isSelected) {
+          nextList = currentList.filter((c) => c !== condition);
+        } else {
+          // Ketika memilih 'Belum dipilah dan dibersihkan', batalkan pilihan dipilah & dibersihkan
+          nextList = currentList.filter(
+            (c) => c !== "Sudah dipilah" && c !== "Sudah dibersihkan"
+          );
+          nextList.push("Belum dipilah dan dibersihkan");
+        }
+      } else if (condition === "Sudah dipilah" || condition === "Sudah dibersihkan") {
+        if (isSelected) {
+          nextList = currentList.filter((c) => c !== condition);
+        } else {
+          // Ketika memilih 'Sudah dipilah' atau 'Sudah dibersihkan', batalkan 'Belum dipilah dan dibersihkan'
+          nextList = currentList.filter((c) => c !== "Belum dipilah dan dibersihkan");
+          nextList.push(condition);
+        }
+      } else if (condition === "Tidak mudah didaur ulang") {
+        // Bebas dipilih bersamaan dengan kondisi apa pun
+        if (isSelected) {
+          nextList = currentList.filter((c) => c !== condition);
+        } else {
+          nextList = [...currentList, condition];
+        }
+      } else {
+        if (isSelected) {
+          nextList = currentList.filter((c) => c !== condition);
+        } else {
+          nextList = [...currentList, condition];
+        }
+      }
+
       return {
         ...prev,
         [report.id]: {
           ...reportConds,
-          [itemKey]: [condition], // Hanya boleh memilih salah satu dari 4 pilihan
+          [itemKey]: nextList,
         },
       };
     });
@@ -268,6 +318,8 @@ function VerificationContent() {
       citizenConditions: item.conditions || [],
       actualWeight: item.actualWeight,
       verifiedConditions: item.verifiedConditions,
+      tierLabel: item.tierLabel,
+      tier: item.tier,
       weighingPhoto: item.weighingPhoto,
       price: item.price,
       subtotal: item.subtotal,
@@ -351,11 +403,10 @@ function VerificationContent() {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedId(item.id)}
-                  className={`w-full rounded-xl border p-4 text-left transition cursor-pointer ${
-                    active
-                      ? "border-green-600 bg-green-50/80 shadow-sm ring-1 ring-green-600/20"
-                      : "border-slate-200 bg-white hover:border-green-200 hover:bg-slate-50/50"
-                  }`}
+                  className={`w-full rounded-xl border p-4 text-left transition cursor-pointer ${active
+                    ? "border-green-600 bg-green-50/80 shadow-sm ring-1 ring-green-600/20"
+                    : "border-slate-200 bg-white hover:border-green-200 hover:bg-slate-50/50"
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -444,34 +495,36 @@ function VerificationContent() {
                       key={`${item.category}-${index}`}
                       className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5"
                     >
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <div>
-                          <p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-green-700">
-                            Kategori {index + 1}
-                          </p>
-                          <h3 className="mt-1 font-extrabold text-slate-900 text-base">
-                            {item.category}
-                          </h3>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Estimasi Warga: <strong>{item.estimate} kg</strong>
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center content-start gap-1.5 self-start sm:max-w-[55%] sm:justify-end">
-                          {(item.conditions?.length ? item.conditions : []).map(
-                            (condition) => (
-                              <span
-                                key={condition}
-                                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800 leading-normal whitespace-nowrap shadow-xs"
-                              >
-                                {condition}
-                              </span>
-                            )
-                          )}
-                          {!item.conditions?.length && (
-                            <span className="text-[11px] font-semibold text-slate-400 py-1">
-                              Kondisi awal tidak tersedia
-                            </span>
-                          )}
+                      <div>
+                        <p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-green-700">
+                          Kategori {index + 1}
+                        </p>
+                        <h3 className="mt-1 font-extrabold text-slate-900 text-base">
+                          {item.category}
+                        </h3>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Estimasi Warga: <strong>{item.estimate} kg</strong>
+                        </p>
+                      </div>
+
+                      {/* Informasi Pemilihan Kondisi oleh Warga */}
+                      <div className="mt-3.5 rounded-xl border border-sky-200/80 bg-sky-50/70 p-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-sky-950">
+                            Kondisi dilaporkan warga:
+                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {(item.conditions?.length ? item.conditions : ["Sudah dipilah"]).map(
+                              (condition) => (
+                                <span
+                                  key={condition}
+                                  className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-800 shadow-xs"
+                                >
+                                  {condition}
+                                </span>
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -507,11 +560,6 @@ function VerificationContent() {
                             <p className="text-sm font-semibold text-slate-700">
                               Kondisi terverifikasi
                             </p>
-                            {!readOnly && (
-                              <span className="text-[11px] font-medium text-slate-400">
-                                (Pilih salah satu)
-                              </span>
-                            )}
                           </div>
                           {readOnly ? (
                             <div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
@@ -537,15 +585,13 @@ function VerificationContent() {
                                 return (
                                   <label
                                     key={condition}
-                                    className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-bold leading-4 transition ${
-                                      !isReady
-                                        ? "cursor-not-allowed opacity-50"
-                                        : "cursor-pointer"
-                                    } ${
-                                      selected
+                                    className={`flex min-h-14 items-center gap-2 rounded-xl border px-3 py-2 text-left text-[11px] font-bold leading-4 transition ${!isReady
+                                      ? "cursor-not-allowed opacity-50"
+                                      : "cursor-pointer"
+                                      } ${selected
                                         ? "border-green-600 bg-green-50 text-green-900 ring-1 ring-green-600"
                                         : "border-slate-200 bg-white text-slate-600 hover:border-green-300 hover:bg-green-50/50"
-                                    }`}
+                                      }`}
                                   >
                                     <input
                                       type="checkbox"
@@ -562,18 +608,13 @@ function VerificationContent() {
                               })}
                             </div>
                           )}
-                          {!readOnly && (
-                            <p className="mt-2 text-[10px] leading-4 text-slate-500">
-                              Harga per kilogram otomatis disesuaikan dengan kondisi sampah yang dipilih.
-                            </p>
-                          )}
                         </div>
 
                         <Field label="Harga per kilogram">
                           <input
                             disabled
                             className="input bg-slate-100 font-semibold text-slate-700"
-                            value={money(savedItem?.price ?? item.price)}
+                            value={money(readOnly && savedItem?.price ? savedItem.price : item.price)}
                           />
                         </Field>
 
@@ -581,7 +622,7 @@ function VerificationContent() {
                           <input
                             disabled
                             className="input bg-green-50 font-extrabold text-green-800"
-                            value={money(savedItem?.subtotal ?? item.subtotal)}
+                            value={money(readOnly && savedItem?.subtotal ? savedItem.subtotal : item.subtotal)}
                           />
                         </Field>
                       </div>
@@ -635,11 +676,10 @@ function VerificationContent() {
                         ) : (
                           <div className="mt-3">
                             <label
-                              className={`flex min-h-24 flex-col items-center justify-center rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-5 text-center transition ${
-                                isReady
-                                  ? "cursor-pointer hover:border-green-400"
-                                  : "cursor-not-allowed opacity-50"
-                              }`}
+                              className={`flex min-h-24 flex-col items-center justify-center rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-5 text-center transition ${isReady
+                                ? "cursor-pointer hover:border-green-400"
+                                : "cursor-not-allowed opacity-50"
+                                }`}
                             >
                               <UploadCloud className="text-green-700" size={23} />
                               <span className="mt-2 text-xs font-extrabold text-green-800">

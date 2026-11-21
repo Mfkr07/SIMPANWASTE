@@ -215,14 +215,23 @@ export function PetugasProvider({ children }: { children: ReactNode }) {
       const itemsPayload = verifiedItems.map((item) => {
         const idKat = getCategoryUuid(item.category);
         let kondisi: "bersih" | "kotor" | "tercampur_air" = "bersih";
-        const cond = (item.verifiedCondition || item.citizenConditions?.[0] || "").toLowerCase();
-        if (cond.includes("bersih") || cond.includes("sudah dipilah")) {
-          kondisi = "bersih";
-        } else if (cond.includes("kotor") || cond.includes("belum")) {
-          kondisi = "kotor";
-        } else {
+        const condList = (
+          item.verifiedConditions ||
+          (item.verifiedCondition ? [item.verifiedCondition] : []) ||
+          item.citizenConditions ||
+          []
+        ).map((c) => c.toLowerCase());
+
+        if (condList.some((c) => c.includes("tidak mudah") || c.includes("daur ulang"))) {
           kondisi = "tercampur_air";
+        } else if (condList.some((c) => c.includes("belum"))) {
+          kondisi = "kotor";
+        } else if (condList.some((c) => c.includes("bersih") || c.includes("dipilah"))) {
+          kondisi = "bersih";
+        } else {
+          kondisi = "kotor";
         }
+
         return {
           id_kategori: idKat,
           berat_aktual: Number(item.actualWeight || 1),

@@ -88,8 +88,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const { metode, id_bank_sampah, latitude, longitude, estimasi_berat, kategori_ids, catatan_lokasi, pickupLocation } =
-      validated.data;
+    const {
+      metode,
+      id_bank_sampah,
+      latitude,
+      longitude,
+      estimasi_berat,
+      kategori_ids,
+      kategori_items,
+      catatan_lokasi,
+      pickupLocation,
+    } = validated.data;
 
     // Jika metode pickup, validasi batas minimum pickup dari pengaturan sistem
     if (metode === "pickup") {
@@ -112,6 +121,22 @@ export async function POST(request: Request) {
     }
 
     // Insert laporan_setoran
+    // Siapkan catatan lokasi dan simpan mapping kondisi warga di metadata
+    const conditionsMap: Record<string, string[]> = {};
+    if (kategori_items && kategori_items.length > 0) {
+      kategori_items.forEach((item) => {
+        if (item.conditions?.length) {
+          conditionsMap[item.id_kategori] = item.conditions;
+        }
+      });
+    }
+
+    let finalLocationNote = catatan_lokasi || pickupLocation || "";
+    if (Object.keys(conditionsMap).length > 0) {
+      finalLocationNote = (finalLocationNote ? `${finalLocationNote} ` : "") +
+        `[KONDISI:${JSON.stringify(conditionsMap)}]`;
+    }
+
     const insertPayload: Record<string, any> = {
       id_pengguna: authUser.id,
       metode,
@@ -122,9 +147,8 @@ export async function POST(request: Request) {
       status: "menunggu",
     };
 
-    const locationNote = catatan_lokasi || pickupLocation;
-    if (locationNote) {
-      insertPayload.catatan_lokasi = locationNote;
+    if (finalLocationNote) {
+      insertPayload.catatan_lokasi = finalLocationNote;
     }
 
     let { data: laporan, error: laporanError } = await supabase
@@ -151,11 +175,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert placeholder baris kategori ke detail_setoran
-    const detailRows = kategori_ids.map((id_kategori) => ({
-      id_laporan: laporan.id,
-      id_kategori,
-    }));
+    // Insert baris kategori ke detail_setoran beserta estimasi kondisi dari warga
+    const detailRows =
+      kategori_items && kategori_items.length > 0
+        ? kategori_items.map((item) => ({
+            id_laporan: laporan.id,
+            id_kategori: item.id_kategori,
+            kondisi: item.kondisi || "bersih",
+          }))
+        : (kategori_ids || []).map((id_kategori) => ({
+            id_laporan: laporan.id,
+            id_kategori,
+            kondisi: "bersih",
+          }));
 
     const { error: detailError } = await supabase
       .from("detail_setoran")

@@ -1,4 +1,4 @@
-import { Report, TrackerStage, WithdrawalRequest } from "@/data/wargaSeedData";
+import { Report, TrackerStage, WasteCondition, WithdrawalRequest } from "@/data/wargaSeedData";
 
 export function mapDbReportToUi(db: any): Report {
   const method = db.metode === "drop_off" ? "Drop-off" : "Pickup";
@@ -10,8 +10,18 @@ export function mapDbReportToUi(db: any): Report {
     year: "numeric",
   }).format(dateObj);
 
+  let rawLocation = db.catatan_lokasi || "";
+  let conditionsMap: Record<string, WasteCondition[]> = {};
+  const condMatch = rawLocation.match(/\s*\[KONDISI:(.*?)\]\s*$/);
+  if (condMatch) {
+    try {
+      conditionsMap = JSON.parse(condMatch[1]);
+      rawLocation = rawLocation.replace(condMatch[0], "").trim();
+    } catch {}
+  }
+
   const location =
-    db.catatan_lokasi ||
+    rawLocation ||
     (db.metode === "drop_off"
       ? db.bank_sampah?.nama || "Bank Sampah Graha Pena Palembang"
       : db.profil?.alamat || "Lokasi Warga (Pickup)");
@@ -45,30 +55,52 @@ export function mapDbReportToUi(db: any): Report {
     });
   }
 
-  const verifiedItems = (db.detail_setoran || []).map((d: any) => ({
-    category: d.kategori_sampah?.nama_kategori || "Sampah",
-    estimatedWeight: Number(db.estimasi_berat || 0),
-    actualWeight: Number(d.berat_aktual || 0),
-    citizenConditions: [
-      d.kondisi === "bersih"
-        ? "Sudah dibersihkan"
-        : d.kondisi === "kotor"
-        ? "Belum dipilah dan dibersihkan"
-        : "Tidak mudah didaur ulang",
-    ],
-    verifiedCondition:
-      d.kondisi === "bersih"
-        ? "Sudah dibersihkan"
-        : d.kondisi === "kotor"
-        ? "Belum dipilah dan dibersihkan"
-        : "Tidak mudah didaur ulang",
-    price:
-      d.subtotal && d.berat_aktual ? Math.round(Number(d.subtotal) / Number(d.berat_aktual)) : 0,
-    subtotal: Number(d.subtotal || 0),
-    weighingPhoto: db.penimbangan?.foto_bukti_url
-      ? { name: "bukti_penimbangan.jpg", type: "image/jpeg", dataUrl: db.penimbangan.foto_bukti_url }
-      : undefined,
-  }));
+  const categoryWeights = (db.detail_setoran || []).map((d: any) => {
+    const categoryName = d.kategori_sampah?.nama_kategori || "Sampah";
+    const categoryId = d.id_kategori || d.kategori_sampah?.id;
+    let conditions: WasteCondition[] =
+      conditionsMap[categoryId] ||
+      conditionsMap[categoryName] ||
+      [];
+
+    if (!conditions.length) {
+      if (d.kondisi === "bersih") {
+        conditions = ["Sudah dipilah", "Sudah dibersihkan"];
+      } else if (d.kondisi === "kotor") {
+        conditions = ["Belum dipilah dan dibersihkan"];
+      } else if (d.kondisi === "tercampur_air") {
+        conditions = ["Tidak mudah didaur ulang"];
+      } else {
+        conditions = ["Sudah dipilah"];
+      }
+    }
+
+    return {
+      category: categoryName,
+      estimate: Number(db.estimasi_berat || 0),
+      conditions,
+    };
+  });
+
+  const verifiedItems = (db.detail_setoran || []).map((d: any, idx: number) => {
+    const categoryName = d.kategori_sampah?.nama_kategori || "Sampah";
+    const mappedConditions = categoryWeights[idx]?.conditions || ["Sudah dipilah"];
+
+    return {
+      category: categoryName,
+      estimatedWeight: Number(db.estimasi_berat || 0),
+      actualWeight: Number(d.berat_aktual || 0),
+      citizenConditions: mappedConditions,
+      verifiedCondition: mappedConditions[0],
+      verifiedConditions: mappedConditions,
+      price:
+        d.subtotal && d.berat_aktual ? Math.round(Number(d.subtotal) / Number(d.berat_aktual)) : 0,
+      subtotal: Number(d.subtotal || 0),
+      weighingPhoto: db.penimbangan?.foto_bukti_url
+        ? { name: "bukti_penimbangan.jpg", type: "image/jpeg", dataUrl: db.penimbangan.foto_bukti_url }
+        : undefined,
+    };
+  });
 
   return {
     id: db.id,
@@ -84,11 +116,13 @@ export function mapDbReportToUi(db: any): Report {
     actual: db.penimbangan?.total_berat ? Number(db.penimbangan.total_berat) : undefined,
     value: db.penimbangan?.total_nilai ? Number(db.penimbangan.total_nilai) : undefined,
     trackerHistory,
-    categoryWeights: (db.detail_setoran || []).map((d: any) => ({
-      category: d.kategori_sampah?.nama_kategori || "Sampah",
-      estimate: Number(db.estimasi_berat || 0),
-    })),
-    verifiedItems: verifiedItems.length > 0 ? verifiedItems : undefined,
+    categoryWeights,
+    verifiedItems:
+      db.status === "selesai" || db.penimbangan
+        ? verifiedItems.length > 0
+          ? verifiedItems
+          : undefined
+        : undefined,
   };
 }
 
@@ -111,10 +145,10 @@ export function mapDbWithdrawalToUi(w: any): WithdrawalRequest {
     submittedDate: dateFormatted,
     processedDate: w.tanggal_proses
       ? new Intl.DateTimeFormat("id-ID", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }).format(new Date(w.tanggal_proses))
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(w.tanggal_proses))
       : undefined,
     processedBy: w.petugas?.nama || undefined,
     proof: w.bukti_transfer_url

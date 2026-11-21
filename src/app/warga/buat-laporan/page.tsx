@@ -170,9 +170,8 @@ function WasteCategoryCombobox({
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectCategory(item.name)}
-                  className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition ${
-                    highlighted ? "bg-green-50" : "hover:bg-slate-50"
-                  }`}
+                  className={`flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition ${highlighted ? "bg-green-50" : "hover:bg-slate-50"
+                    }`}
                 >
                   <span className="flex items-start gap-3">
                     <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-green-50 text-green-700">
@@ -213,6 +212,7 @@ export default function CreateReportPage() {
       category: string;
       estimate: number;
       condition?: WasteCondition;
+      conditions?: WasteCondition[];
     }>
   >([]);
   const wasteItemSequence = useRef(0);
@@ -243,11 +243,19 @@ export default function CreateReportPage() {
     );
   const hasValidWeights = wasteItems.every((item) => item.estimate > 0);
   const hasValidConditions = wasteItems.every(
-    (item) => item.condition && wasteConditions.includes(item.condition),
+    (item) => (item.conditions && item.conditions.length > 0) || item.condition,
   );
   const combinationKeys = wasteItems
-    .filter((item) => item.condition)
-    .map((item) => `${item.category}::${item.condition}`);
+    .filter((item) => (item.conditions && item.conditions.length > 0) || item.condition)
+    .map((item) => {
+      const condList =
+        item.conditions && item.conditions.length > 0
+          ? item.conditions
+          : item.condition
+            ? [item.condition]
+            : [];
+      return `${item.category}::${condList.slice().sort().join("+")}`;
+    });
   const hasUniqueCombinations =
     new Set(combinationKeys).size === combinationKeys.length;
 
@@ -257,12 +265,6 @@ export default function CreateReportPage() {
 
   const addWasteItem = (name: string) => {
     if (!categories.some((item) => item.name === name)) return;
-    const usedConditions = wasteItems
-      .filter((item) => item.category === name && item.condition)
-      .map((item) => item.condition);
-    if (usedConditions.length === wasteConditions.length) {
-      return notify(`Semua kombinasi kondisi untuk ${name} sudah ditambahkan.`);
-    }
     wasteItemSequence.current += 1;
     setWasteItems((current) => [
       ...current,
@@ -270,28 +272,61 @@ export default function CreateReportPage() {
         id: `waste-item-${Date.now()}-${wasteItemSequence.current}`,
         category: name,
         estimate: 0,
+        conditions: ["Sudah dipilah"],
+        condition: "Sudah dipilah",
       },
     ]);
   };
 
-  const selectItemCondition = (itemId: string, condition: WasteCondition) => {
-    const currentItem = wasteItems.find((item) => item.id === itemId);
-    if (!currentItem) return;
-    const duplicate = wasteItems.some(
-      (item) =>
-        item.id !== itemId &&
-        item.category === currentItem.category &&
-        item.condition === condition,
-    );
-    if (duplicate) {
-      return notify(
-        `${currentItem.category} dengan kondisi "${condition}" sudah ditambahkan. Ubah estimasi berat pada item yang sudah ada.`,
-      );
-    }
+  const toggleItemCondition = (itemId: string, condition: WasteCondition) => {
     setWasteItems((current) =>
-      current.map((item) =>
-        item.id === itemId ? { ...item, condition } : item,
-      ),
+      current.map((item) => {
+        if (item.id !== itemId) return item;
+        const currentList: WasteCondition[] =
+          item.conditions && item.conditions.length > 0
+            ? item.conditions
+            : item.condition
+              ? [item.condition]
+              : [];
+        const isSelected = currentList.includes(condition);
+
+        let nextList: WasteCondition[];
+        if (condition === "Belum dipilah dan dibersihkan") {
+          if (isSelected) {
+            nextList = currentList.filter((c) => c !== condition);
+          } else {
+            nextList = currentList.filter(
+              (c) => c !== "Sudah dipilah" && c !== "Sudah dibersihkan"
+            );
+            nextList.push("Belum dipilah dan dibersihkan");
+          }
+        } else if (condition === "Sudah dipilah" || condition === "Sudah dibersihkan") {
+          if (isSelected) {
+            nextList = currentList.filter((c) => c !== condition);
+          } else {
+            nextList = currentList.filter((c) => c !== "Belum dipilah dan dibersihkan");
+            nextList.push(condition);
+          }
+        } else if (condition === "Tidak mudah didaur ulang") {
+          if (isSelected) {
+            nextList = currentList.filter((c) => c !== condition);
+          } else {
+            nextList = [...currentList, condition];
+          }
+        } else {
+          if (isSelected) {
+            nextList = currentList.filter((c) => c !== condition);
+          } else {
+            nextList = [...currentList, condition];
+          }
+        }
+
+        return {
+          ...item,
+          conditions: nextList,
+          condition: nextList[0],
+        };
+      })
     );
   };
 
@@ -351,13 +386,42 @@ export default function CreateReportPage() {
       categoryWeights: wasteItems.map((item) => ({
         category: item.category,
         estimate: item.estimate,
-        conditions: item.condition ? [item.condition] : [],
+        conditions:
+          item.conditions && item.conditions.length > 0
+            ? item.conditions
+            : item.condition
+              ? [item.condition]
+              : [],
       })),
     };
 
     const kategoriUuids = Array.from(
       new Set(wasteItems.map((item) => getCategoryUuid(item.category)))
     );
+
+    const kategoriItems = wasteItems.map((item) => {
+      const condList =
+        item.conditions && item.conditions.length > 0
+          ? item.conditions
+          : item.condition
+            ? [item.condition]
+            : ["Sudah dipilah"];
+
+      let dbKondisi: "bersih" | "kotor" | "tercampur_air" = "bersih";
+      if (condList.includes("Tidak mudah didaur ulang")) {
+        dbKondisi = "tercampur_air";
+      } else if (condList.includes("Belum dipilah dan dibersihkan")) {
+        dbKondisi = "kotor";
+      } else {
+        dbKondisi = "bersih";
+      }
+
+      return {
+        id_kategori: getCategoryUuid(item.category),
+        kondisi: dbKondisi,
+        conditions: condList,
+      };
+    });
 
     // Kirim laporan ke database Supabase secara real-time
     fetch("/api/laporan", {
@@ -376,6 +440,7 @@ export default function CreateReportPage() {
             : null,
         estimasi_berat: totalWeight,
         kategori_ids: kategoriUuids,
+        kategori_items: kategoriItems,
       }),
     })
       .then((res) => res.json())
@@ -426,13 +491,12 @@ export default function CreateReportPage() {
                 className="flex flex-col items-center text-center"
               >
                 <div
-                  className={`grid h-9 w-9 place-items-center rounded-full border-4 border-white shadow-sm transition-all duration-300 sm:h-11 sm:w-11 ${
-                    active
-                      ? "bg-green-700 text-white ring-4 ring-green-100"
-                      : complete
-                        ? "bg-green-100 text-green-700"
-                        : "bg-slate-100 text-slate-400"
-                  }`}
+                  className={`grid h-9 w-9 place-items-center rounded-full border-4 border-white shadow-sm transition-all duration-300 sm:h-11 sm:w-11 ${active
+                    ? "bg-green-700 text-white ring-4 ring-green-100"
+                    : complete
+                      ? "bg-green-100 text-green-700"
+                      : "bg-slate-100 text-slate-400"
+                    }`}
                 >
                   {complete ? (
                     <Check size={17} strokeWidth={3} />
@@ -441,13 +505,12 @@ export default function CreateReportPage() {
                   )}
                 </div>
                 <p
-                  className={`mt-2 text-[10px] font-extrabold sm:text-xs ${
-                    active
-                      ? "text-green-800"
-                      : complete
-                        ? "text-green-600"
-                        : "text-slate-400"
-                  }`}
+                  className={`mt-2 text-[10px] font-extrabold sm:text-xs ${active
+                    ? "text-green-800"
+                    : complete
+                      ? "text-green-600"
+                      : "text-slate-400"
+                    }`}
                 >
                   {item.label}
                 </p>
@@ -514,7 +577,14 @@ export default function CreateReportPage() {
                           const invalid =
                             showStepOneErrors && !(item.estimate > 0);
                           const invalidCondition =
-                            showStepOneErrors && !item.condition;
+                            showStepOneErrors &&
+                            !((item.conditions && item.conditions.length > 0) || item.condition);
+                          const currentConditions =
+                            item.conditions && item.conditions.length > 0
+                              ? item.conditions
+                              : item.condition
+                                ? [item.condition]
+                                : [];
                           return (
                             <div
                               key={item.id}
@@ -553,11 +623,10 @@ export default function CreateReportPage() {
                                     min="0.1"
                                     step=".1"
                                     inputMode="decimal"
-                                    className={`input bg-white py-3 pr-14 ${
-                                      invalid
-                                        ? "border-red-400 ring-2 ring-red-100 focus:border-red-400"
-                                        : ""
-                                    }`}
+                                    className={`input bg-white py-3 pr-14 ${invalid
+                                      ? "border-red-400 ring-2 ring-red-100 focus:border-red-400"
+                                      : ""
+                                      }`}
                                     placeholder="Estimasi berat (kg)"
                                     value={item.estimate || ""}
                                     aria-invalid={invalid}
@@ -566,11 +635,11 @@ export default function CreateReportPage() {
                                         current.map((candidate) =>
                                           candidate.id === item.id
                                             ? {
-                                                ...candidate,
-                                                estimate: Number(
-                                                  event.target.value,
-                                                ),
-                                              }
+                                              ...candidate,
+                                              estimate: Number(
+                                                event.target.value,
+                                              ),
+                                            }
                                             : candidate,
                                         ),
                                       )
@@ -587,36 +656,43 @@ export default function CreateReportPage() {
                                 </span>
                               )}
                               <fieldset className="mt-4">
-                                <legend className="mb-2 text-xs font-semibold text-slate-600">
-                                  Kondisi sampah
-                                </legend>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <legend className="text-xs font-semibold text-slate-700">
+                                    Estimasi kondisi sampah
+                                  </legend>
+                                  <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    (Dapat memilih lebih dari 1 kondisi)
+                                  </span>
+                                </div>
                                 <div className="grid gap-2 sm:grid-cols-2">
-                                  {wasteConditions.map((condition) => (
-                                    <label
-                                      key={condition}
-                                      className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-xs font-semibold leading-5 transition ${
-                                        item.condition === condition
-                                          ? "border-green-500 bg-green-50 text-green-900"
-                                          : "border-slate-200 bg-white text-slate-600 hover:border-green-200"
-                                      }`}
-                                    >
-                                      <input
-                                        type="radio"
-                                        name={`waste-condition-${item.id}`}
-                                        value={condition}
-                                        checked={item.condition === condition}
-                                        onChange={() =>
-                                          selectItemCondition(item.id, condition)
-                                        }
-                                        className="mt-0.5 accent-green-700"
-                                      />
-                                      <span>{condition}</span>
-                                    </label>
-                                  ))}
+                                  {wasteConditions.map((condition) => {
+                                    const selected = currentConditions.includes(condition);
+                                    return (
+                                      <label
+                                        key={condition}
+                                        className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-xs font-semibold leading-5 transition ${selected
+                                          ? "border-green-600 bg-green-50 text-green-900 ring-1 ring-green-600"
+                                          : "border-slate-200 bg-white text-slate-600 hover:border-green-200 hover:bg-green-50/30"
+                                          }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          name={`waste-condition-${item.id}-${condition}`}
+                                          value={condition}
+                                          checked={selected}
+                                          onChange={() =>
+                                            toggleItemCondition(item.id, condition)
+                                          }
+                                          className="mt-0.5 accent-green-700 cursor-pointer rounded"
+                                        />
+                                        <span>{condition}</span>
+                                      </label>
+                                    );
+                                  })}
                                 </div>
                                 {invalidCondition && (
                                   <span className="mt-2 block text-xs font-semibold text-red-600">
-                                    Pilih satu kondisi sampah.
+                                    Pilih minimal satu kondisi sampah.
                                   </span>
                                 )}
                               </fieldset>
@@ -676,11 +752,10 @@ export default function CreateReportPage() {
                   <button
                     disabled={!pickupOk}
                     onClick={() => setMethod("Pickup")}
-                    className={`group rounded-2xl border-2 p-5 text-left transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer ${
-                      method === "Pickup" && pickupOk
-                        ? "border-green-600 bg-green-50 shadow-sm"
-                        : "border-slate-200 bg-slate-50/60 hover:border-green-200"
-                    }`}
+                    className={`group rounded-2xl border-2 p-5 text-left transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer ${method === "Pickup" && pickupOk
+                      ? "border-green-600 bg-green-50 shadow-sm"
+                      : "border-slate-200 bg-slate-50/60 hover:border-green-200"
+                      }`}
                   >
                     <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-green-700 shadow-sm">
                       <Truck size={21} />
@@ -693,11 +768,10 @@ export default function CreateReportPage() {
 
                   <button
                     onClick={() => setMethod("Drop-off")}
-                    className={`group rounded-2xl border-2 p-5 text-left transition hover:-translate-y-0.5 cursor-pointer ${
-                      method === "Drop-off"
-                        ? "border-green-600 bg-green-50 shadow-sm"
-                        : "border-slate-200 bg-slate-50/60 hover:border-green-200"
-                    }`}
+                    className={`group rounded-2xl border-2 p-5 text-left transition hover:-translate-y-0.5 cursor-pointer ${method === "Drop-off"
+                      ? "border-green-600 bg-green-50 shadow-sm"
+                      : "border-slate-200 bg-slate-50/60 hover:border-green-200"
+                      }`}
                   >
                     <div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-green-700 shadow-sm">
                       <Building2 size={21} />
@@ -866,11 +940,20 @@ export default function CreateReportPage() {
                       <dd className="sm:max-w-[65%] sm:text-right">
                         <p className="font-extrabold text-slate-800">{item.estimate} kg</p>
                         <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">
-                          {item.condition && (
-                            <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-800">
-                              {item.condition}
+                          {(
+                            item.conditions && item.conditions.length > 0
+                              ? item.conditions
+                              : item.condition
+                                ? [item.condition]
+                                : []
+                          ).map((c) => (
+                            <span
+                              key={c}
+                              className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-800"
+                            >
+                              {c}
                             </span>
-                          )}
+                          ))}
                         </div>
                       </dd>
                     </div>

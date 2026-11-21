@@ -64,10 +64,10 @@ interface TrendPoint {
 export default function AdminDashboardPage() {
   const { reports, distributions } = useAdmin();
 
-  // State Filter Rentang Waktu
+  // State Filter Rentang Waktu (default: Tahun Ini)
   const [filterPreset, setFilterPreset] = useState<
-    "all" | "today" | "7days" | "30days" | "thisMonth" | "custom"
-  >("all");
+    "thisYear" | "thisMonth" | "today" | "all" | "custom"
+  >("thisYear");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -91,29 +91,25 @@ export default function AdminDashboardPage() {
   const { startFilterDate, endFilterDate, filterLabel } = useMemo(() => {
     const now = new Date();
 
-    if (filterPreset === "today") {
-      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-      const label = `Hari Ini (${s.toLocaleDateString("id-ID", { day: "numeric", month: "short" })})`;
+    if (filterPreset === "thisYear") {
+      const s = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+      const e = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+      const label = `Tahun Ini (${now.getFullYear()})`;
       return { startFilterDate: s, endFilterDate: e, filterLabel: label };
-    }
-
-    if (filterPreset === "7days") {
-      const s = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      s.setHours(0, 0, 0, 0);
-      return { startFilterDate: s, endFilterDate: now, filterLabel: "7 Hari Terakhir" };
-    }
-
-    if (filterPreset === "30days") {
-      const s = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      s.setHours(0, 0, 0, 0);
-      return { startFilterDate: s, endFilterDate: now, filterLabel: "30 Hari Terakhir" };
     }
 
     if (filterPreset === "thisMonth") {
       const s = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
       const label = `Bulan Ini (${now.toLocaleDateString("id-ID", { month: "long", year: "numeric" })})`;
-      return { startFilterDate: s, endFilterDate: now, filterLabel: label };
+      return { startFilterDate: s, endFilterDate: e, filterLabel: label };
+    }
+
+    if (filterPreset === "today") {
+      const s = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const e = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      const label = `Hari Ini (${s.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })})`;
+      return { startFilterDate: s, endFilterDate: e, filterLabel: label };
     }
 
     if (filterPreset === "custom") {
@@ -143,6 +139,28 @@ export default function AdminDashboardPage() {
       return true;
     });
   }, [reports, startFilterDate, endFilterDate]);
+
+  // Mode Tampilan Grafik: Per Bulan (> 31 hari) atau Per Hari (<= 31 hari)
+  const isMonthlyView = useMemo(() => {
+    if (filterPreset === "thisYear") return true;
+    if (filterPreset === "thisMonth" || filterPreset === "today") return false;
+    if (filterPreset === "custom") {
+      if (!startFilterDate || !endFilterDate) return false;
+      const diffMs = Math.abs(endFilterDate.getTime() - startFilterDate.getTime());
+      const diffDays = diffMs / (1000 * 60 * 60 * 24);
+      return diffDays > 31;
+    }
+    // "all"
+    if (filteredReports.length > 0) {
+      const dates = filteredReports.map((r) => parseDateAny(r.date)).filter(Boolean) as Date[];
+      if (dates.length > 1) {
+        const minT = Math.min(...dates.map((d) => d.getTime()));
+        const maxT = Math.max(...dates.map((d) => d.getTime()));
+        return (maxT - minT) / (1000 * 60 * 60 * 24) > 31;
+      }
+    }
+    return false;
+  }, [filterPreset, startFilterDate, endFilterDate, filteredReports]);
 
   // Filter distribusi berdasarkan rentang tanggal aktif
   const filteredDistributions = useMemo(() => {
@@ -245,17 +263,132 @@ export default function AdminDashboardPage() {
     };
   }, [filteredReports, filteredDistributions]);
 
-  // Data Rangkaian Tren Nyata untuk Grafik
+  // Data Rangkaian Tren Nyata untuk Grafik (Bulanan vs Harian)
   const trendData = useMemo<TrendPoint[]>(() => {
     if (filteredReports.length === 0) return [];
 
+    const now = new Date();
+
+    if (isMonthlyView) {
+      // -----------------------------------------------------------------------
+      // MODE PER BULAN (Yearly / Rentang > 31 hari)
+      // -----------------------------------------------------------------------
+      if (filterPreset === "thisYear") {
+        // Tampilkan 12 bulan (Januari sampai Desember) pada tahun ini
+        const targetYear = startFilterDate ? startFilterDate.getFullYear() : now.getFullYear();
+        const monthNames = [
+          "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+          "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+        ];
+        const fullMonthNames = [
+          "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+          "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+        ];
+
+        // Inisialisasi 12 bulan dengan bobot 0 kg
+        const monthlyTotals: TrendPoint[] = Array.from({ length: 12 }, (_, idx) => ({
+          id: `month-${targetYear}-${idx}`,
+          label: monthNames[idx],
+          fullDate: `${fullMonthNames[idx]} ${targetYear}`,
+          dateObj: new Date(targetYear, idx, 1),
+          weight: 0,
+          count: 0,
+          categories: [],
+        }));
+
+        filteredReports.forEach((r) => {
+          const d = parseDateAny(r.date);
+          if (d && d.getFullYear() === targetYear) {
+            const m = d.getMonth();
+            if (m >= 0 && m < 12) {
+              const weight = Number(r.actual !== undefined ? r.actual : r.estimate) || 0;
+              monthlyTotals[m].weight += weight;
+              monthlyTotals[m].count += 1;
+            }
+          }
+        });
+
+        return monthlyTotals.map((m) => ({
+          ...m,
+          weight: Math.round(m.weight * 10) / 10,
+        }));
+      }
+
+      // Rentang kustom (> 31 hari) atau "all"
+      const dates = filteredReports.map((r) => parseDateAny(r.date)).filter(Boolean) as Date[];
+      if (dates.length === 0) return [];
+
+      let minDate = startFilterDate || new Date(Math.min(...dates.map((d) => d.getTime())));
+      let maxDate = endFilterDate || new Date(Math.max(...dates.map((d) => d.getTime())));
+      if (minDate > maxDate) [minDate, maxDate] = [maxDate, minDate];
+
+      const startY = minDate.getFullYear();
+      const startM = minDate.getMonth();
+      const endY = maxDate.getFullYear();
+      const endM = maxDate.getMonth();
+
+      const monthNames = [
+        "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+        "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+      ];
+      const fullMonthNames = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+      ];
+
+      const monthsList: TrendPoint[] = [];
+      const cur = new Date(startY, startM, 1);
+      const endLimit = new Date(endY, endM, 1);
+
+      while (cur <= endLimit) {
+        const y = cur.getFullYear();
+        const m = cur.getMonth();
+        const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+        const label = startY === endY ? monthNames[m] : `${monthNames[m]} '${String(y).slice(-2)}`;
+        const fullDate = `${fullMonthNames[m]} ${y}`;
+
+        monthsList.push({
+          id: key,
+          label,
+          fullDate,
+          dateObj: new Date(y, m, 1),
+          weight: 0,
+          count: 0,
+          categories: [],
+        });
+
+        cur.setMonth(cur.getMonth() + 1);
+      }
+
+      const monthMap = new Map(monthsList.map((m) => [m.id, m]));
+      filteredReports.forEach((r) => {
+        const d = parseDateAny(r.date);
+        if (d) {
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+          const target = monthMap.get(key);
+          if (target) {
+            const weight = Number(r.actual !== undefined ? r.actual : r.estimate) || 0;
+            target.weight += weight;
+            target.count += 1;
+          }
+        }
+      });
+
+      return monthsList.map((m) => ({
+        ...m,
+        weight: Math.round(m.weight * 10) / 10,
+      }));
+    }
+
+    // -------------------------------------------------------------------------
+    // MODE PER HARI (Daily / Rentang <= 31 hari)
+    // -------------------------------------------------------------------------
     const grouped: Record<
       string,
       {
         weight: number;
         count: number;
         dateObj: Date;
-        categories: Set<string>;
         fullDate: string;
       }
     > = {};
@@ -272,7 +405,6 @@ export default function AdminDashboardPage() {
           weight: 0,
           count: 0,
           dateObj: d,
-          categories: new Set<string>(),
           fullDate: new Intl.DateTimeFormat("id-ID", {
             day: "numeric",
             month: "short",
@@ -283,10 +415,6 @@ export default function AdminDashboardPage() {
 
       grouped[key].weight += weight;
       grouped[key].count += 1;
-      (r.category || "").split(",").forEach((c) => {
-        const trimmed = c.trim();
-        if (trimmed) grouped[key].categories.add(trimmed);
-      });
     });
 
     const sortedKeys = Object.keys(grouped).sort();
@@ -305,10 +433,10 @@ export default function AdminDashboardPage() {
         dateObj: item.dateObj,
         weight: Math.round(item.weight * 10) / 10,
         count: item.count,
-        categories: Array.from(item.categories),
+        categories: [],
       };
     });
-  }, [filteredReports]);
+  }, [filteredReports, isMonthlyView, filterPreset, startFilterDate, endFilterDate]);
 
   // State Hover Interaktif pada Grafik
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
@@ -359,10 +487,18 @@ export default function AdminDashboardPage() {
       const p2 = coords[i + 1];
       const p3 = coords[i + 2 < coords.length ? i + 2 : i + 1];
 
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      let cp1x = p1.x + (p2.x - p0.x) / 6;
+      let cp1y = p1.y + (p2.y - p0.y) / 6;
+      let cp2x = p2.x - (p3.x - p1.x) / 6;
+      let cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      // Jaga agar titik kontrol nol tetap datar di garis dasar bawah
+      if (p1.y === bottomY && p2.y === bottomY) {
+        cp1y = bottomY;
+        cp2y = bottomY;
+      }
+      cp1y = Math.max(topY - 5, Math.min(bottomY, cp1y));
+      cp2y = Math.max(topY - 5, Math.min(bottomY, cp2y));
 
       lineStr += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(
         1
@@ -442,11 +578,10 @@ export default function AdminDashboardPage() {
                     Pilihan Periode
                   </p>
                   {[
-                    { id: "all", label: "Semua Waktu" },
+                    { id: "thisYear", label: `Tahun Ini (${new Date().getFullYear()})` },
                     { id: "thisMonth", label: "Bulan Ini" },
-                    { id: "30days", label: "30 Hari Terakhir" },
-                    { id: "7days", label: "7 Hari Terakhir" },
                     { id: "today", label: "Hari Ini" },
+                    { id: "all", label: "Semua Waktu" },
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -611,7 +746,7 @@ export default function AdminDashboardPage() {
                 Tren pengumpulan
               </h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                Aktivitas penimbangan berkala ({filterLabel})
+                {isMonthlyView ? "Aktivitas bulanan" : "Aktivitas harian"} ({filterLabel})
               </p>
             </div>
             <Badge tone="green">
@@ -631,40 +766,21 @@ export default function AdminDashboardPage() {
             </div>
           ) : (
             <div className="relative mt-6">
-              {/* Floating Tooltip saat Hover */}
+              {/* Floating Tooltip Ringkas saat Hover */}
               {activePoint && (
                 <div
-                  className="pointer-events-none absolute z-30 transform -translate-x-1/2 rounded-xl border border-slate-200 bg-white/95 backdrop-blur-xs p-3 shadow-xl transition-all duration-75 text-left min-w-[155px]"
+                  className="pointer-events-none absolute z-30 -translate-x-1/2 -translate-y-full rounded-lg border border-slate-200/90 bg-white/95 px-2.5 py-1.5 shadow-lg backdrop-blur-xs text-center transition-all duration-75 whitespace-nowrap"
                   style={{
-                    left: `${(activePoint.x / 600) * 100}%`,
-                    top: `${Math.max(0, (activePoint.y / 200) * 100 - 32)}%`,
+                    left: `${Math.max(12, Math.min(88, (activePoint.x / 600) * 100))}%`,
+                    top: `${Math.max(8, (activePoint.y / 200) * 100 - 8)}%`,
                   }}
                 >
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
-                    <CalendarDays size={13} className="text-emerald-600 shrink-0" />
-                    <span>{activePoint.data.fullDate}</span>
-                  </div>
-                  <div className="mt-1 flex items-baseline gap-1">
-                    <span className="text-lg font-black text-slate-900">
-                      {activePoint.data.weight.toLocaleString("id-ID")}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-700">kg sampah</span>
-                  </div>
-                  <div className="mt-0.5 text-[11px] font-medium text-slate-500">
-                    {activePoint.data.count} transaksi setoran
-                  </div>
-                  {activePoint.data.categories.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1 max-w-[180px] border-t border-slate-100 pt-1.5">
-                      {activePoint.data.categories.slice(0, 3).map((c) => (
-                        <span
-                          key={c}
-                          className="inline-block rounded bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-1.5 py-0.5 text-[10px] font-semibold"
-                        >
-                          {c}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <p className="text-[10px] font-semibold text-slate-500 leading-tight">
+                    {activePoint.data.fullDate}
+                  </p>
+                  <p className="text-xs font-black text-emerald-700 leading-tight mt-0.5">
+                    {activePoint.data.weight.toLocaleString("id-ID")} kg sampah
+                  </p>
                 </div>
               )}
 
@@ -709,10 +825,10 @@ export default function AdminDashboardPage() {
                       key={p.data.id}
                       cx={p.x}
                       cy={p.y}
-                      r={hoveredIdx === idx ? 6 : 4}
-                      fill={hoveredIdx === idx ? "#059669" : "#10b981"}
+                      r={hoveredIdx === idx ? 5.5 : p.data.weight > 0 ? 3.5 : 2.5}
+                      fill={hoveredIdx === idx ? "#059669" : p.data.weight > 0 ? "#10b981" : "#cbd5e1"}
                       stroke="#ffffff"
-                      strokeWidth="2"
+                      strokeWidth={hoveredIdx === idx ? "2.5" : "1.5"}
                       className="transition-all duration-150"
                     />
                   ))}
@@ -732,28 +848,47 @@ export default function AdminDashboardPage() {
                       <circle
                         cx={activePoint.x}
                         cy={activePoint.y}
-                        r="9"
+                        r="8"
                         fill="#10b981"
                         fillOpacity="0.25"
                       />
                       <circle
                         cx={activePoint.x}
                         cy={activePoint.y}
-                        r="5"
+                        r="4.5"
                         fill="#047857"
                         stroke="#ffffff"
-                        strokeWidth="2.5"
+                        strokeWidth="2"
                       />
                     </g>
                   )}
                 </svg>
               </div>
 
-              {/* Label Sumbu X Tanggal */}
-              <div className="mt-3 flex justify-between px-2 text-[11px] font-semibold text-slate-500">
-                {chartPoints.slice(0, 7).map((p) => (
-                  <span key={p.data.id}>{p.data.label}</span>
-                ))}
+              {/* Label Sumbu X */}
+              <div className="mt-3 flex justify-between px-2 text-[10px] sm:text-[11px] font-semibold text-slate-500">
+                {chartPoints.map((p, idx) => {
+                  const total = chartPoints.length;
+                  const showLabel =
+                    total <= 12 ||
+                    idx === 0 ||
+                    idx === total - 1 ||
+                    idx % Math.ceil(total / 6) === 0;
+
+                  if (!showLabel) return null;
+
+                  const isHovered = hoveredIdx === idx;
+                  return (
+                    <span
+                      key={p.data.id}
+                      className={`transition-colors text-center ${
+                        isHovered ? "text-emerald-700 font-extrabold" : ""
+                      }`}
+                    >
+                      {p.data.label}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           )}

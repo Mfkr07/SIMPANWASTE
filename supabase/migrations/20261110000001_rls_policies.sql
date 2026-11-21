@@ -251,7 +251,7 @@ create policy "penarikan_update_policy" on public.penarikan_saldo
 -- Warga hanya membaca riwayat miliknya sendiri. Admin membaca agregat via fungsi/dashboard.
 create policy "saldo_transaksi_select_policy" on public.saldo_transaksi
   for select
-  using (id_pengguna = auth.uid() or public.is_admin());
+  using (id_pengguna = auth.uid() or public.is_petugas_or_admin());
 
 -- Insert, Update, Delete langsung DILARANG untuk klien. Hanya boleh lewat SECURITY DEFINER RPC!
 create policy "saldo_transaksi_no_direct_insert" on public.saldo_transaksi

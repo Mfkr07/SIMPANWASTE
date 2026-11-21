@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createLaporanSchema } from "@/lib/validations/laporan";
+import { createLaporanSchema, updateLaporanSchema } from "@/lib/validations/laporan";
 
 export async function GET(request: Request) {
   try {
@@ -173,6 +173,119 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !authUser) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const validated = updateLaporanSchema.safeParse(body);
+    if (!validated.success) {
+      const firstIssue = validated.error.issues[0]?.message || "Payload tidak valid";
+      return NextResponse.json({ error: firstIssue }, { status: 400 });
+    }
+
+    const { id_laporan, metode, estimasi_berat, catatan_lokasi, kategori_ids } = validated.data;
+
+    let dbClient = supabase;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        dbClient = createAdminClient();
+      } catch {}
+    }
+
+    // Ambil laporan untuk memastikan status masih 'menunggu'
+    const { data: currentLaporan, error: findError } = await dbClient
+      .from("laporan_setoran")
+      .select("id, id_pengguna, status, metode, estimasi_berat")
+      .eq("id", id_laporan)
+      .single();
+
+    if (findError || !currentLaporan) {
+      return NextResponse.json({ error: "Laporan tidak ditemukan" }, { status: 404 });
+    }
+
+    if (currentLaporan.status !== "menunggu") {
+      return NextResponse.json(
+        { error: "Laporan hanya dapat diubah saat masih berstatus Menunggu." },
+        { status: 400 }
+      );
+    }
+
+    // Validasi batas minimum pickup jika metode pickup
+    const effectiveMetode = metode || currentLaporan.metode;
+    const effectiveBerat =
+      estimasi_berat !== undefined ? estimasi_berat : Number(currentLaporan.estimasi_berat);
+
+    if (effectiveMetode === "pickup") {
+      const { data: settings } = await dbClient
+        .from("pengaturan_sistem")
+        .select("batas_minimum_pickup_kg")
+        .single();
+      const batasMin = settings?.batas_minimum_pickup_kg ?? 5.0;
+      if (effectiveBerat < batasMin) {
+        return NextResponse.json(
+          {
+            error: `Estimasi berat (${effectiveBerat} kg) di bawah batas minimum penjemputan (${batasMin} kg). Silakan gunakan metode Drop-off langsung ke Bank Sampah Graha Pena.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (estimasi_berat !== undefined) updatePayload.estimasi_berat = estimasi_berat;
+    if (metode !== undefined) updatePayload.metode = metode;
+    if (effectiveMetode === "drop_off") {
+      updatePayload.id_bank_sampah = "22222222-2222-2222-2222-222222222201";
+      updatePayload.catatan_lokasi = null;
+    } else if (catatan_lokasi !== undefined) {
+      updatePayload.catatan_lokasi = catatan_lokasi;
+    }
+
+    const { data: updatedLaporan, error: updateError } = await dbClient
+      .from("laporan_setoran")
+      .update(updatePayload)
+      .eq("id", id_laporan)
+      .select()
+      .single();
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: "Gagal memperbarui laporan: " + updateError.message },
+        { status: 500 }
+      );
+    }
+
+    // Jika kategori_ids diubah
+    if (kategori_ids && kategori_ids.length > 0) {
+      await dbClient.from("detail_setoran").delete().eq("id_laporan", id_laporan);
+      const detailRows = kategori_ids.map((id_kategori) => ({
+        id_laporan,
+        id_kategori,
+      }));
+      await dbClient.from("detail_setoran").insert(detailRows);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Laporan berhasil diperbarui",
+      laporan: updatedLaporan,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

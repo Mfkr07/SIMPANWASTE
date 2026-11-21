@@ -243,14 +243,14 @@ function LoginForm() {
             hijaukan masa depan.
           </h1>
           <p className="mt-5 max-w-lg text-lg leading-8 text-green-100">
-            Kelola setoran sampah anorganik, pantau tabungan, dan terhubung dengan bank sampah
-            terverifikasi dalam satu layanan.
+            Kelola setoran sampah anorganik, pantau tabungan, dan terhubung langsung dengan Bank
+            Sampah Graha Pena dalam satu layanan.
           </p>
           <div className="mt-10 grid grid-cols-3 gap-4">
             {[
               ["12,8 ton", "Sampah terkelola"],
               ["1.240+", "Setoran warga"],
-              ["8", "Bank sampah"],
+              ["1 Sentra", "Pusat Graha Pena"],
             ].map(([v, l]) => (
               <div
                 key={l}

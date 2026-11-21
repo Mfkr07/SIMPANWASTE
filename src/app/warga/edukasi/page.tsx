@@ -107,10 +107,7 @@ export default function WargaEducationPage() {
                 <p className="mt-2 text-sm leading-6 text-green-950">{e.note}</p>
               </aside>
             </div>
-            <div className="mt-12 flex flex-col gap-4 border-t border-slate-200 pt-7 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-[10px] font-medium text-slate-400">
-                Foto: {e.credit}
-              </p>
+            <div className="mt-12 flex items-center justify-end border-t border-slate-200 pt-7">
               <Button onClick={closeDetail} className="cursor-pointer">
                 <ArrowLeft size={17} /> Kembali ke Informasi & Edukasi
               </Button>

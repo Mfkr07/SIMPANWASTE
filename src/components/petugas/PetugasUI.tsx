@@ -1,8 +1,22 @@
 "use client";
 
 import { useState, useRef, useEffect, ReactNode } from "react";
-import { Recycle, FileText, X, LucideIcon, Filter, ChevronDown, Check } from "lucide-react";
+import { Recycle, FileText, X, LucideIcon, Filter, ChevronDown, Check, MessageCircle } from "lucide-react";
 import { Report } from "@/data/wargaSeedData";
+
+export function getWhatsAppUrl(phone: string, citizenName: string, reportId: string) {
+  if (!phone || phone === "-") return "#";
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0")) {
+    digits = "62" + digits.slice(1);
+  } else if (digits.startsWith("8")) {
+    digits = "62" + digits;
+  }
+  const message = encodeURIComponent(
+    `Halo ${citizenName}, saya petugas Bank Sampah Graha Pena terkait penjemputan sampah (ID: ${reportId}).`
+  );
+  return `https://wa.me/${digits}?text=${message}`;
+}
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -194,12 +208,13 @@ export function ReportTable({
 }) {
   return (
     <div className="table-wrap">
-      <table className="w-full min-w-[1080px] border-collapse text-left">
+      <table className="w-full min-w-[1220px] border-collapse text-left">
         <thead>
           <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
-            <th className="w-[130px] min-w-[130px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
-            <th className="w-[180px] min-w-[180px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
-            <th className="w-[260px] min-w-[240px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
+            <th className="w-[125px] min-w-[125px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
+            <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+            <th className="w-[170px] min-w-[160px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
+            <th className="w-[240px] min-w-[220px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
             <th className="w-[110px] min-w-[100px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Berat</th>
             <th className="w-[120px] min-w-[110px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Metode</th>
             <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Tanggal</th>
@@ -216,64 +231,88 @@ export function ReportTable({
           </tr>
         </thead>
         <tbody>
-          {reports.map((r) => (
-            <tr
-              key={r.id}
-              className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
-            >
-              <td className="w-[130px] min-w-[130px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
-                {r.id}
-              </td>
-              <td className="w-[180px] min-w-[180px] px-4 py-3.5 align-middle">
-                <p className="font-semibold text-slate-800">{r.citizen}</p>
-                <p className="text-xs text-slate-400">{r.phone}</p>
-              </td>
-              <td className="w-[260px] min-w-[240px] max-w-[280px] px-4 py-3.5 align-middle">
-                <div className="text-sm font-medium leading-relaxed text-slate-800 break-words whitespace-normal">
-                  {r.category}
-                </div>
-              </td>
-              <td className="w-[110px] min-w-[100px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
-                <span className="font-bold text-slate-900">{r.estimate} kg</span>
-              </td>
-              <td className="w-[120px] min-w-[110px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
-                <Badge tone={r.method === "Pickup" ? "blue" : "slate"}>{r.method}</Badge>
-              </td>
-              <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-slate-600 whitespace-nowrap">
-                {r.date}
-              </td>
-              <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
-                <Badge tone={r.status === "Selesai" ? "green" : "amber"}>{r.status}</Badge>
-              </td>
-              <td
-                className={`${
-                  actionLabel === "Detail"
-                    ? "w-[80px] min-w-[70px] text-center"
-                    : "w-[160px] min-w-[150px] text-right"
-                } px-4 py-3.5 align-middle whitespace-nowrap`}
+          {reports.map((r) => {
+            const hasPhone = r.phone && r.phone !== "-";
+            return (
+              <tr
+                key={r.id}
+                className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
               >
-                {actionLabel === "Detail" ? (
-                  <button
-                    type="button"
-                    title="Lihat Detail Laporan"
-                    aria-label="Lihat Detail Laporan"
-                    onClick={() => onAction(r)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-xs transition hover:border-green-500 hover:bg-green-50 hover:text-green-700 active:scale-95 cursor-pointer"
-                  >
-                    <FileText size={16} />
-                  </button>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    className="min-h-8 px-3 py-1 text-xs cursor-pointer"
-                    onClick={() => onAction(r)}
-                  >
-                    {actionLabel}
-                  </Button>
-                )}
-              </td>
-            </tr>
-          ))}
+                <td className="w-[125px] min-w-[125px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
+                  {r.id}
+                </td>
+                <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle">
+                  <p className="font-bold text-slate-900">{r.citizen}</p>
+                  <span className="inline-block mt-0.5 text-[11px] font-medium text-slate-400">
+                    Nasabah Warga
+                  </span>
+                </td>
+                <td className="w-[170px] min-w-[160px] px-4 py-3.5 align-middle">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-slate-800">
+                      {hasPhone ? r.phone : "Belum ada nomor"}
+                    </span>
+                    {hasPhone && (
+                      <a
+                        href={getWhatsAppUrl(r.phone, r.citizen, r.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 w-fit rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1 text-[11px] font-bold shadow-2xs transition cursor-pointer"
+                        title={`Hubungi ${r.citizen} via WhatsApp`}
+                      >
+                        <MessageCircle size={13} className="shrink-0" />
+                        <span>Chat WA</span>
+                      </a>
+                    )}
+                  </div>
+                </td>
+                <td className="w-[240px] min-w-[220px] max-w-[260px] px-4 py-3.5 align-middle">
+                  <div className="text-sm font-medium leading-relaxed text-slate-800 break-words whitespace-normal">
+                    {r.category}
+                  </div>
+                </td>
+                <td className="w-[110px] min-w-[100px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                  <span className="font-bold text-slate-900">{r.estimate} kg</span>
+                </td>
+                <td className="w-[120px] min-w-[110px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                  <Badge tone={r.method === "Pickup" ? "blue" : "slate"}>{r.method}</Badge>
+                </td>
+                <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-slate-600 whitespace-nowrap">
+                  {r.date}
+                </td>
+                <td className="w-[130px] min-w-[120px] px-4 py-3.5 align-middle text-center whitespace-nowrap">
+                  <Badge tone={r.status === "Selesai" ? "green" : "amber"}>{r.status}</Badge>
+                </td>
+                <td
+                  className={`${
+                    actionLabel === "Detail"
+                      ? "w-[80px] min-w-[70px] text-center"
+                      : "w-[160px] min-w-[150px] text-right"
+                  } px-4 py-3.5 align-middle whitespace-nowrap`}
+                >
+                  {actionLabel === "Detail" ? (
+                    <button
+                      type="button"
+                      title="Lihat Detail Laporan"
+                      aria-label="Lihat Detail Laporan"
+                      onClick={() => onAction(r)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-xs transition hover:border-green-500 hover:bg-green-50 hover:text-green-700 active:scale-95 cursor-pointer"
+                    >
+                      <FileText size={16} />
+                    </button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      className="min-h-8 px-3 py-1 text-xs cursor-pointer"
+                      onClick={() => onAction(r)}
+                    >
+                      {actionLabel}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       {reports.length === 0 && (

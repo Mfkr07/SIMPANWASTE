@@ -284,11 +284,11 @@ alter table public.distribusi_mitra enable row level security;
 -- ==============================================================================
 -- POLICY: PROFIL
 -- ==============================================================================
--- Pengguna dapat melihat profil sendiri; Admin dapat melihat semua
+-- Pengguna dapat melihat profil sendiri; Petugas & Admin dapat melihat semua
 drop policy if exists "profil_select_policy" on public.profil;
 create policy "profil_select_policy" on public.profil
   for select
-  using (auth.uid() = id or public.is_admin());
+  using (auth.uid() = id or public.is_petugas_or_admin());
 
 -- Pengguna dapat mengubah profil sendiri; Admin dapat mengubah profil siapa saja
 drop policy if exists "profil_update_policy" on public.profil;

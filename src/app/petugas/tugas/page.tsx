@@ -2,13 +2,14 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Truck, Scale } from "lucide-react";
+import { Search, Truck, Scale, MessageCircle } from "lucide-react";
 import {
   PageTitle,
   Card,
   Button,
   Badge,
   StatusDropdown,
+  getWhatsAppUrl,
 } from "@/components/petugas/PetugasUI";
 import { usePetugas } from "@/context/PetugasContext";
 
@@ -91,13 +92,14 @@ export default function PetugasTugasPage() {
         </div>
 
         <div className="table-wrap">
-          <table className="w-full min-w-[1260px] border-collapse text-left">
+          <table className="w-full min-w-[1360px] border-collapse text-left">
             <thead>
               <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
-                <th className="w-[130px] min-w-[130px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
-                <th className="w-[180px] min-w-[180px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+                <th className="w-[125px] min-w-[125px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
+                <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+                <th className="w-[170px] min-w-[160px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
                 <th className="w-[260px] min-w-[240px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Lokasi</th>
-                <th className="w-[240px] min-w-[220px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
+                <th className="w-[220px] min-w-[200px] px-4 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
                 <th className="w-[130px] min-w-[120px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Berat Estimasi</th>
                 <th className="w-[140px] min-w-[130px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Laporan</th>
                 <th className="w-[160px] min-w-[150px] px-4 py-3.5 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status Tugas</th>
@@ -112,18 +114,42 @@ export default function PetugasTugasPage() {
                   report.trackerHistory?.some(
                     (entry) => entry.stage === "Petugas dalam Perjalanan"
                   ) || false;
+                const hasValidPhone = report.phone && report.phone !== "-";
 
                 return (
                   <tr
                     key={report.id}
                     className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
                   >
-                    <td className="w-[130px] min-w-[130px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
+                    <td className="w-[125px] min-w-[125px] px-4 py-3.5 align-middle font-bold text-green-700 whitespace-nowrap">
                       {report.id}
                     </td>
-                    <td className="w-[180px] min-w-[180px] px-4 py-3.5 align-middle">
-                      <p className="font-semibold text-slate-800">{report.citizen}</p>
-                      <p className="text-xs text-slate-400">{report.phone}</p>
+                    <td className="w-[160px] min-w-[150px] px-4 py-3.5 align-middle">
+                      <p className="font-bold text-slate-900">{report.citizen}</p>
+                      <span className="inline-block mt-0.5 text-[11px] font-medium text-slate-400">
+                        Nasabah Warga
+                      </span>
+                    </td>
+                    <td className="w-[170px] min-w-[160px] px-4 py-3.5 align-middle">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800">
+                          {hasValidPhone ? report.phone : "Belum ada nomor"}
+                        </span>
+                        {hasValidPhone ? (
+                          <a
+                            href={getWhatsAppUrl(report.phone, report.citizen, report.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 w-fit rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1 text-[11px] font-bold shadow-2xs transition cursor-pointer"
+                            title={`Kirim pesan WhatsApp ke ${report.citizen}`}
+                          >
+                            <MessageCircle size={13} className="shrink-0" />
+                            <span>Chat WA</span>
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Nomor tidak tersedia</span>
+                        )}
+                      </div>
                     </td>
                     <td className="w-[260px] min-w-[240px] max-w-[280px] px-4 py-3.5 align-middle">
                       <div className="text-sm leading-relaxed text-slate-600 break-words whitespace-normal">

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
   try {
@@ -19,7 +20,14 @@ export async function GET() {
       .eq("id", authUser.id)
       .single();
 
-    let query = supabase
+    let dbClient = supabase;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        dbClient = createAdminClient();
+      } catch {}
+    }
+
+    let query = dbClient
       .from("penarikan_saldo")
       .select(`
         *,

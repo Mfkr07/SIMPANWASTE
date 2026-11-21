@@ -221,9 +221,9 @@ export function Modal({
 
 export function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 last:border-0 text-sm">
-      <span className="text-slate-500 font-medium">{label}</span>
-      <span className="font-bold text-slate-900 text-right">{value}</span>
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-slate-100 last:border-0 text-sm">
+      <span className="text-slate-500 font-medium shrink-0 pt-0.5">{label}</span>
+      <span className="font-bold text-slate-900 text-right break-words max-w-[70%]">{value}</span>
     </div>
   );
 }

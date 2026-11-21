@@ -37,9 +37,6 @@ export default function AboutSection() {
               </div>
             </figcaption>
           </figure>
-          <p className="mt-4 text-right text-[10px] font-medium text-slate-400">
-            Foto: Vladislav Smigelski / Unsplash
-          </p>
         </div>
 
         {/* Kolom Kanan: Teks Penjelasan */}

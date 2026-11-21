@@ -169,9 +169,9 @@ export function StatCard({
 
 export function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="text-right font-bold text-slate-800">{value}</span>
+    <div className="flex items-start justify-between gap-4 text-sm">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className="text-right font-bold text-slate-800 break-words max-w-[70%]">{value}</span>
     </div>
   );
 }

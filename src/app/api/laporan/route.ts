@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createLaporanSchema } from "@/lib/validations/laporan";
 
 export async function GET(request: Request) {
@@ -20,7 +21,14 @@ export async function GET(request: Request) {
       .eq("id", authUser.id)
       .single();
 
-    let query = supabase
+    let dbClient = supabase;
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        dbClient = createAdminClient();
+      } catch {}
+    }
+
+    let query = dbClient
       .from("laporan_setoran")
       .select(`
         *,

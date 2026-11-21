@@ -29,7 +29,7 @@ export default function HeroSection() {
           </h1>
 
           <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
-            Bank Sampah Graha Pena, binaan Sumatera Ekspres, Palembang.
+            Pilah sampah dari rumah, setor langsung atau jadwalkan penjemputan, dan pantau saldo tabungan secara transparan.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -50,13 +50,13 @@ export default function HeroSection() {
 
           <div className="mt-9 flex flex-wrap gap-x-6 gap-y-3 rounded-2xl border border-green-100 bg-white/80 px-4 py-3 text-xs font-semibold text-slate-600 shadow-sm">
             <span className="flex items-center gap-2">
-              <Clock3 size={16} className="text-green-600" /> Senin–Jumat 09.00–16.00
+              <Clock3 size={16} className="text-green-600 shrink-0" /> Senin–Jumat 09.00–16.00
             </span>
             <span className="flex items-center gap-2">
-              <MapPin size={16} className="text-green-600" /> Palembang
+              <MapPin size={16} className="text-green-600 shrink-0" /> Jl. Kolonel H. Barlian KM.6,5 No.773, Alang-Alang Lebar, Palembang
             </span>
             <span className="flex items-center gap-2">
-              <Phone size={16} className="text-green-600" /> WhatsApp: +62 812-7128-799
+              <Phone size={16} className="text-green-600 shrink-0" /> WhatsApp: +62 812-7128-799
             </span>
           </div>
         </div>

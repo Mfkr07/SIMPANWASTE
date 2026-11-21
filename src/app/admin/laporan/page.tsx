@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, MapPin, Phone, Calendar, Truck, FileText } from "lucide-react";
+import { Search, MapPin, Phone, Calendar, Truck, FileText, MessageCircle } from "lucide-react";
 import {
   PageTitle,
   Card,
@@ -162,7 +162,35 @@ export default function AdminLaporanPage() {
           <div className="space-y-3 rounded-xl bg-slate-50 p-4 border border-slate-100">
             <InfoRow label="ID Laporan" value={selectedReport.id} />
             <InfoRow label="Nama Warga" value={selectedReport.citizen} />
-            <InfoRow label="Nomor Telepon" value={selectedReport.phone} />
+            <InfoRow
+              label="Nomor Telepon"
+              value={
+                selectedReport.phone && selectedReport.phone !== "-" ? (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-800">{selectedReport.phone}</span>
+                    <a
+                      href={`https://wa.me/${
+                        selectedReport.phone.replace(/[^0-9]/g, "").startsWith("0")
+                          ? "62" + selectedReport.phone.replace(/[^0-9]/g, "").slice(1)
+                          : selectedReport.phone.replace(/[^0-9]/g, "").startsWith("62")
+                          ? selectedReport.phone.replace(/[^0-9]/g, "")
+                          : "62" + selectedReport.phone.replace(/[^0-9]/g, "")
+                      }?text=${encodeURIComponent(
+                        `Halo ${selectedReport.citizen}, terkait laporan setoran sampah SIMPANWASTE Anda (ID: ${selectedReport.id})...`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-xs font-bold transition shadow-2xs"
+                    >
+                      <MessageCircle size={12} />
+                      <span>Chat WA</span>
+                    </a>
+                  </div>
+                ) : (
+                  <span className="text-slate-400 italic text-xs">Belum ada nomor</span>
+                )
+              }
+            />
             <InfoRow label="Kategori Sampah" value={selectedReport.category} />
             <InfoRow label="Estimasi Berat" value={`${selectedReport.estimate} kg`} />
             {selectedReport.actual !== undefined && (

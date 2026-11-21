@@ -9,6 +9,8 @@ import {
   Pencil,
   ClipboardList,
   FileText,
+  MapPin,
+  MessageCircle,
 } from "lucide-react";
 import { PageTitle, Card, Badge, Button, Modal } from "@/components/warga/WargaUI";
 import { useWarga } from "@/context/WargaContext";
@@ -212,20 +214,102 @@ export default function WargaReportsPage() {
         <Modal title="Detail Laporan" onClose={() => setSelected(null)} wide>
           <dl className="divide-y divide-slate-100">
             {[
-              ["ID laporan", selected.id],
-              ["Nama warga", selected.citizen],
-              ["Kategori", selected.category],
-              ["Estimasi", `${selected.estimate} kg`],
-              ["Metode", selected.method],
-              ["Lokasi", selected.location],
-              ["Status", selected.status],
-              ["Tanggal laporan", selected.date],
-            ].map(([a, b]) => (
-              <div className="flex justify-between gap-6 py-3 text-sm" key={a}>
-                <dt className="text-slate-500">{a}</dt>
-                <dd className="text-right font-bold text-slate-900">{b}</dd>
-              </div>
-            ))}
+              { label: "ID laporan", value: selected.id, isId: true },
+              { label: "Nama warga", value: selected.citizen },
+              {
+                label: "No. WhatsApp",
+                value: selected.phone && selected.phone !== "-" ? selected.phone : "-",
+                isPhone: true,
+              },
+              { label: "Kategori", value: selected.category },
+              { label: "Estimasi", value: `${selected.estimate} kg` },
+              { label: "Metode", value: selected.method },
+              { label: "Lokasi", value: selected.location, isLocation: true },
+              { label: "Status", value: selected.status, isStatus: true },
+              { label: "Tanggal laporan", value: selected.date },
+            ].map((row) => {
+              if (row.isLocation) {
+                return (
+                  <div
+                    key={row.label}
+                    className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 py-3.5 text-sm"
+                  >
+                    <dt className="text-slate-500 font-medium shrink-0 sm:w-36 pt-1">
+                      {row.label}
+                    </dt>
+                    <dd className="w-full sm:max-w-[70%] rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 text-left">
+                      <div className="flex items-start gap-2.5">
+                        <MapPin size={15} className="text-green-700 shrink-0 mt-0.5" />
+                        <span className="text-xs leading-relaxed font-semibold text-slate-800 break-words">
+                          {row.value}
+                        </span>
+                      </div>
+                    </dd>
+                  </div>
+                );
+              }
+
+              if (row.isPhone) {
+                const phoneVal = selected.phone && selected.phone !== "-" ? selected.phone : null;
+                const cleanPhone = phoneVal ? phoneVal.replace(/[^0-9]/g, "") : "";
+                const formattedWa = cleanPhone
+                  ? cleanPhone.startsWith("0")
+                    ? "62" + cleanPhone.slice(1)
+                    : cleanPhone.startsWith("62")
+                    ? cleanPhone
+                    : "62" + cleanPhone
+                  : "";
+
+                return (
+                  <div
+                    className="flex items-center justify-between gap-4 py-3 text-sm"
+                    key={row.label}
+                  >
+                    <dt className="text-slate-500 font-medium">{row.label}</dt>
+                    <dd className="text-right">
+                      {phoneVal && formattedWa ? (
+                        <a
+                          href={`https://wa.me/${formattedWa}?text=${encodeURIComponent(
+                            `Halo ${selected.citizen}, terkait laporan setoran sampah Anda (ID: ${selected.id})...`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 active:scale-95 cursor-pointer"
+                          title={`Hubungi ${selected.citizen} via WhatsApp`}
+                        >
+                          <MessageCircle size={13} className="text-emerald-600 shrink-0" />
+                          <span>{selected.phone}</span>
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Belum ada nomor</span>
+                      )}
+                    </dd>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  className="flex items-center justify-between gap-4 py-3 text-sm"
+                  key={row.label}
+                >
+                  <dt className="text-slate-500 font-medium">{row.label}</dt>
+                  <dd
+                    className={`text-right font-bold text-slate-900 ${
+                      row.isId ? "font-mono text-xs break-all text-slate-700" : ""
+                    }`}
+                  >
+                    {row.isStatus ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                        {row.value}
+                      </span>
+                    ) : (
+                      row.value
+                    )}
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
 
           <div className="mt-6 border-t border-slate-100 pt-6">

@@ -221,6 +221,7 @@ export default function CreateReportPage() {
   const [pickupLocation, setPickupLocation] = useState(
     citizenProfile.address || "Jl. Ki Merogan, Kertapati, Palembang",
   );
+  const [pickupDetails, setPickupDetails] = useState("");
   const dropOffDestination = grahaPenaLocation.name;
 
   useEffect(() => {
@@ -337,7 +338,12 @@ export default function CreateReportPage() {
       method,
       status: "Menunggu",
       date: todayFormatted,
-      location: method === "Pickup" ? pickupLocation : dropOffDestination,
+      location:
+        method === "Pickup"
+          ? pickupDetails.trim()
+            ? `${pickupLocation.trim()} (Patokan: ${pickupDetails.trim()})`
+            : pickupLocation.trim()
+          : dropOffDestination,
       assigned: "Rizky Pratama",
       trackerHistory: [
         { stage: "Request Terkirim", timestamp: trackerTimestamp() },
@@ -362,7 +368,12 @@ export default function CreateReportPage() {
         id_bank_sampah: method === "Drop-off" ? GRAHA_PENA_UUID : null,
         latitude: method === "Pickup" ? -2.9463 : null,
         longitude: method === "Pickup" ? 104.7391 : null,
-        catatan_lokasi: method === "Pickup" ? pickupLocation : null,
+        catatan_lokasi:
+          method === "Pickup"
+            ? pickupDetails.trim()
+              ? `${pickupLocation.trim()} (Patokan: ${pickupDetails.trim()})`
+              : pickupLocation.trim()
+            : null,
         estimasi_berat: totalWeight,
         kategori_ids: kategoriUuids,
       }),
@@ -735,27 +746,41 @@ export default function CreateReportPage() {
                 </div>
 
                 {method === "Pickup" ? (
-                  <>
-                    <div className="mt-7 h-48 w-full overflow-hidden rounded-2xl border border-slate-200 bg-emerald-50/40 relative flex items-center justify-center">
-                      <div className="absolute inset-0 bg-[radial-gradient(#15803d_1px,transparent_1px)] [background-size:16px_16px] opacity-25" />
-                      <div className="relative text-center p-4 bg-white/90 backdrop-blur-sm rounded-xl border border-slate-200 shadow-sm max-w-sm">
-                        <MapPin className="mx-auto text-green-700 mb-2" size={24} />
-                        <p className="text-xs font-extrabold text-slate-800">Titik Penjemputan Terpilih</p>
-                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{pickupLocation}</p>
-                      </div>
-                    </div>
-                    <label className="mt-5 block">
-                      <span className="mb-2 block text-sm font-bold text-slate-700">
+                  <div className="mt-6 space-y-5">
+                    {/* Alamat Lengkap Penjemputan */}
+                    <label className="block">
+                      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
+                        <MapPin size={16} className="text-green-700" />
                         Alamat lengkap penjemputan
                       </span>
                       <input
                         value={pickupLocation}
                         onChange={(e) => setPickupLocation(e.target.value)}
-                        className="input bg-[#f8faf8] py-3"
-                        placeholder="Masukkan alamat lengkap penjemputan"
+                        className="input bg-[#f8faf8] py-3 text-sm"
+                        placeholder="Contoh: Jl. Ki Merogan No. 45, Kertapati, Palembang"
                       />
+                      <p className="mt-1.5 text-[11px] text-slate-400">
+                        Masukkan nama jalan, nomor bangunan, RT/RW, dan kelurahan/kecamatan.
+                      </p>
                     </label>
-                  </>
+
+                    {/* Detail Alamat / Patokan Tempat */}
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-bold text-slate-700">
+                        Detail alamat / patokan (opsional)
+                      </span>
+                      <textarea
+                        value={pickupDetails}
+                        onChange={(e) => setPickupDetails(e.target.value)}
+                        rows={3}
+                        className="input bg-[#f8faf8] py-2.5 text-sm resize-none"
+                        placeholder="Contoh: Rumah pagar hitam samping warung Bu Siti, Blok B2 No. 14, masuk gang mawar"
+                      />
+                      <p className="mt-1.5 text-[11px] text-slate-400">
+                        Tambahkan patokan khusus seperti warna pagar, toko/warung terdekat, atau nomor rumah untuk memudahkan petugas saat menjemput.
+                      </p>
+                    </label>
+                  </div>
                 ) : (
                   <div className="mt-5">
                     <div className="relative overflow-hidden rounded-2xl border border-green-200 bg-[#eef8f1] p-5 sm:p-6">
@@ -851,19 +876,61 @@ export default function CreateReportPage() {
                     </div>
                   ))}
                   {[
-                    ["Total estimasi berat", `${totalWeight} kg`],
-                    ["Metode", method],
-                    [
-                      method === "Pickup" ? "Titik penjemputan" : "Tujuan Drop-off",
-                      method === "Pickup" ? pickupLocation : dropOffDestination,
-                    ],
-                    ["Status awal", "Menunggu"],
-                  ].map(([a, b]) => (
-                    <div key={a} className="flex justify-between gap-5 py-4 text-sm">
-                      <dt className="text-slate-500">{a}</dt>
-                      <dd className="text-right font-bold text-slate-800">{b}</dd>
-                    </div>
-                  ))}
+                    { label: "Total estimasi berat", value: `${totalWeight} kg` },
+                    { label: "Metode", value: method },
+                    {
+                      label: method === "Pickup" ? "Titik penjemputan" : "Tujuan Drop-off",
+                      value: method === "Pickup" ? pickupLocation : dropOffDestination,
+                      isAddress: true,
+                    },
+                    ...(method === "Pickup" && pickupDetails.trim()
+                      ? [{ label: "Detail / Patokan tempat", value: pickupDetails.trim(), isDetail: true }]
+                      : []),
+                    { label: "Status awal", value: "Menunggu", isStatus: true },
+                  ].map((row) => {
+                    if (row.isAddress || row.isDetail) {
+                      return (
+                        <div
+                          key={row.label}
+                          className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-6 py-4 text-sm"
+                        >
+                          <dt className="text-slate-500 font-medium shrink-0 sm:w-44 pt-1">
+                            {row.label}
+                          </dt>
+                          <dd className="w-full sm:max-w-[65%] rounded-xl border border-slate-200/90 bg-white p-3 shadow-2xs">
+                            <div className="flex items-start gap-2.5">
+                              {row.isAddress ? (
+                                <MapPin size={15} className="text-green-700 shrink-0 mt-0.5" />
+                              ) : (
+                                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 shrink-0 mt-1.5 ring-2 ring-amber-100" />
+                              )}
+                              <span className="text-xs leading-relaxed font-semibold text-slate-800 break-words text-left">
+                                {row.value}
+                              </span>
+                            </div>
+                          </dd>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={row.label}
+                        className="flex items-center justify-between gap-4 py-3.5 text-sm"
+                      >
+                        <dt className="text-slate-500 font-medium">{row.label}</dt>
+                        <dd className="text-right font-bold text-slate-900">
+                          {row.isStatus ? (
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                              {row.value}
+                            </span>
+                          ) : (
+                            row.value
+                          )}
+                        </dd>
+                      </div>
+                    );
+                  })}
                 </dl>
 
                 <div className="mt-5 flex gap-3 rounded-xl bg-sky-50 p-4 text-xs leading-5 text-sky-800">

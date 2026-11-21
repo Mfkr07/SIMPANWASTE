@@ -232,6 +232,26 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           setUsers(mappedUsers);
         }
       }
+
+      // 6. Ambil Data Distribusi Mitra Live
+      const distRes = await fetch("/api/distribusi");
+      if (distRes.ok) {
+        const distData = await distRes.json();
+        if (Array.isArray(distData.data) && distData.data.length > 0) {
+          const mappedDist: DistributionRow[] = distData.data.map((d: any) => ({
+            id: d.id,
+            date: new Intl.DateTimeFormat("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(d.tanggal || d.created_at || Date.now())),
+            partner: d.mitra?.nama || "Mitra Pengepul",
+            category: d.kategori?.nama_kategori || "Sampah Daur Ulang",
+            weight: Number(d.berat || 0),
+          }));
+          setDistributions(mappedDist);
+        }
+      }
     } catch (e) {
       console.warn("Gagal refresh data admin Supabase:", e);
     }

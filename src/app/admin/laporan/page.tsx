@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, MapPin, Phone, Calendar, Truck, FileText, MessageCircle } from "lucide-react";
+import { Search, MapPin, Phone, Calendar, Truck, FileText } from "lucide-react";
 import {
   PageTitle,
   Card,
@@ -15,7 +15,6 @@ import {
 } from "@/components/admin/AdminUI";
 import { useAdmin } from "@/context/AdminContext";
 import { Report } from "@/data/wargaSeedData";
-import { getWhatsAppUrl } from "@/components/petugas/PetugasUI";
 
 export default function AdminLaporanPage() {
   const { reports } = useAdmin();
@@ -194,18 +193,7 @@ export default function AdminLaporanPage() {
               label="Nomor Telepon"
               value={
                 selectedReport.phone && selectedReport.phone !== "-" ? (
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-800">{selectedReport.phone}</span>
-                    <a
-                      href={getWhatsAppUrl(selectedReport, selectedReport.assigned || "Admin Graha Pena")}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-0.5 text-xs font-bold transition shadow-2xs"
-                    >
-                      <MessageCircle size={12} />
-                      <span>Chat WA</span>
-                    </a>
-                  </div>
+                  <span className="font-semibold text-slate-800">{selectedReport.phone}</span>
                 ) : (
                   <span className="text-slate-400 italic text-xs">Belum ada nomor</span>
                 )

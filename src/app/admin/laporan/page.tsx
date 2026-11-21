@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, MapPin, Phone, Calendar, Truck, FileText, MessageCircle } from "lucide-react";
 import {
   PageTitle,
@@ -10,6 +10,8 @@ import {
   Modal,
   InfoRow,
   StatusDropdown,
+  Pagination,
+  usePagination,
 } from "@/components/admin/AdminUI";
 import { useAdmin } from "@/context/AdminContext";
 import { Report } from "@/data/wargaSeedData";
@@ -34,6 +36,21 @@ export default function AdminLaporanPage() {
       (r.location && r.location.toLowerCase().includes(q));
     return matchesStatus && matchesSearch;
   });
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalItems,
+    paginatedItems: paginatedReports,
+    resetPage,
+  } = usePagination(filteredReports, 10);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, statusFilter, resetPage]);
 
   return (
     <>
@@ -96,7 +113,7 @@ export default function AdminLaporanPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredReports.map((r) => (
+              {paginatedReports.map((r) => (
                 <tr
                   key={r.id}
                   className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
@@ -151,6 +168,16 @@ export default function AdminLaporanPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="laporan"
+        />
       </Card>
 
       {/* Detail Modal */}

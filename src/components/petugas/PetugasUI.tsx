@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, ReactNode } from "react";
 import { Recycle, FileText, X, LucideIcon, Filter, ChevronDown, Check, MessageCircle } from "lucide-react";
 import { Report } from "@/data/wargaSeedData";
+import { Pagination, usePagination } from "@/components/common/Pagination";
 
 export interface WhatsAppUrlOptions {
   phone: string;
@@ -266,39 +267,60 @@ export function ReportTable({
   reports,
   actionLabel = "Detail",
   officerName = "Rizky Pratama",
+  pageSize,
   onAction,
 }: {
   reports: Report[];
   actionLabel?: string;
   officerName?: string;
+  pageSize?: number;
   onAction: (r: Report) => void;
 }) {
+  const isPaginated = typeof pageSize === "number" && pageSize > 0;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [activePageSize, setActivePageSize] = useState(pageSize || 10);
+
+  const totalPages = Math.max(1, Math.ceil(reports.length / activePageSize));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const displayedReports = useMemo(() => {
+    if (!isPaginated) return reports;
+    const start = (currentPage - 1) * activePageSize;
+    return reports.slice(start, start + activePageSize);
+  }, [reports, isPaginated, currentPage, activePageSize]);
+
   return (
-    <div className="table-wrap">
-      <table className="w-full min-w-[1100px] border-collapse text-left">
-        <thead>
-          <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
-            <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
-            <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
-            <th className="w-[150px] min-w-[140px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
-            <th className="w-[140px] min-w-[120px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
-            <th className="w-[90px] min-w-[80px] px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Berat</th>
-            <th className="w-[110px] min-w-[100px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Metode</th>
-            <th className="w-[120px] min-w-[110px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Tanggal</th>
-            <th className="w-[120px] min-w-[110px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status</th>
-            <th
-              className={`${
-                actionLabel === "Detail"
-                  ? "w-[80px] min-w-[70px] text-center"
-                  : "w-[150px] min-w-[140px] text-right"
-              } px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600`}
-            >
-              {actionLabel}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {reports.map((r) => {
+    <div className="space-y-3">
+      <div className="table-wrap">
+        <table className="w-full min-w-[1100px] border-collapse text-left">
+          <thead>
+            <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+              <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">ID Laporan</th>
+              <th className="w-[140px] min-w-[130px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Warga</th>
+              <th className="w-[150px] min-w-[140px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">No. WhatsApp</th>
+              <th className="w-[140px] min-w-[120px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Kategori</th>
+              <th className="w-[90px] min-w-[80px] px-3.5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Berat</th>
+              <th className="w-[110px] min-w-[100px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Metode</th>
+              <th className="w-[120px] min-w-[110px] px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600">Tanggal</th>
+              <th className="w-[120px] min-w-[110px] px-3.5 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-600">Status</th>
+              <th
+                className={`${
+                  actionLabel === "Detail"
+                    ? "w-[80px] min-w-[70px] text-center"
+                    : "w-[150px] min-w-[140px] text-right"
+                } px-3.5 py-3 text-xs font-bold uppercase tracking-wider text-slate-600`}
+              >
+                {actionLabel}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {displayedReports.map((r: Report) => {
             const hasPhone = r.phone && r.phone !== "-";
             return (
               <tr
@@ -394,6 +416,19 @@ export function ReportTable({
       </table>
       {reports.length === 0 && (
         <div className="py-12 text-center text-sm text-slate-500">Belum ada data laporan.</div>
+      )}
+      </div>
+
+      {isPaginated && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={reports.length}
+          pageSize={activePageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setActivePageSize}
+          itemLabel="laporan"
+        />
       )}
     </div>
   );
@@ -538,3 +573,6 @@ export function StatusDropdown({
     </div>
   );
 }
+
+export { Pagination, usePagination } from "@/components/common/Pagination";
+export type { PaginationProps } from "@/components/common/Pagination";

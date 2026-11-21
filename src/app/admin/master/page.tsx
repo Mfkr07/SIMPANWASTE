@@ -17,6 +17,8 @@ import {
   Button,
   Field,
   Modal,
+  Pagination,
+  usePagination,
 } from "@/components/admin/AdminUI";
 import {
   useAdmin,
@@ -38,6 +40,16 @@ export default function AdminMasterPage() {
     updatePartner,
     deletePartner,
   } = useAdmin();
+
+  const {
+    currentPage: catPage,
+    setCurrentPage: setCatPage,
+    pageSize: catPageSize,
+    setPageSize: setCatPageSize,
+    totalPages: catTotalPages,
+    totalItems: catTotalItems,
+    paginatedItems: paginatedCategories,
+  } = usePagination(categories, 10);
 
   const [activeTab, setActiveTab] = useState<
     "Kategori Sampah" | "Batas Minimum Pickup" | "Mitra Pengepul"
@@ -204,50 +216,63 @@ export default function AdminMasterPage() {
                 </tr>
               </thead>
               <tbody>
-                {categories.map((c, i) => (
-                  <tr
-                    key={`${c.name}-${i}`}
-                    className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
-                  >
-                    <td className="px-4 py-3.5 font-bold text-slate-900 text-sm">
-                      {c.name}
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-600 text-xs">
-                      {c.desc}
-                    </td>
-                    {wasteConditions.map((condition) => (
-                      <td
-                        key={condition}
-                        className="px-4 py-3.5 text-center font-semibold text-slate-800 text-sm whitespace-nowrap"
-                      >
-                        {money(c.prices?.[condition] || 0)}
+                {paginatedCategories.map((c, i) => {
+                  const originalIndex = (catPage - 1) * catPageSize + i;
+                  return (
+                    <tr
+                      key={`${c.name}-${originalIndex}`}
+                      className="border-b border-slate-200 transition-colors hover:bg-slate-50/80"
+                    >
+                      <td className="px-4 py-3.5 font-bold text-slate-900 text-sm">
+                        {c.name}
                       </td>
-                    ))}
-                    <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditingCategory({ index: i, data: { ...c } })
-                          }
-                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 cursor-pointer"
+                      <td className="px-4 py-3.5 text-slate-600 text-xs">
+                        {c.desc}
+                      </td>
+                      {wasteConditions.map((condition) => (
+                        <td
+                          key={condition}
+                          className="px-4 py-3.5 text-center font-semibold text-slate-800 text-sm whitespace-nowrap"
                         >
-                          <Pencil size={13} /> Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingCatIndex(i)}
-                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 cursor-pointer"
-                        >
-                          <Trash2 size={13} /> Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          {money(c.prices?.[condition] || 0)}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingCategory({ index: originalIndex, data: { ...c } })
+                            }
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-bold text-green-800 transition hover:bg-green-100 cursor-pointer"
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingCatIndex(originalIndex)}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 cursor-pointer"
+                          >
+                            <Trash2 size={13} /> Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={catPage}
+            totalPages={catTotalPages}
+            totalItems={catTotalItems}
+            pageSize={catPageSize}
+            onPageChange={setCatPage}
+            onPageSizeChange={setCatPageSize}
+            itemLabel="kategori sampah"
+          />
         </Card>
       )}
 

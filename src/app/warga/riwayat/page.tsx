@@ -697,11 +697,10 @@ export default function WargaReportsPage() {
                 <button
                   type="button"
                   onClick={() => setEditMethod("Pickup")}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition cursor-pointer ${
-                    editMethod === "Pickup"
-                      ? "border-green-600 bg-green-50 text-green-900 font-bold ring-2 ring-green-600/20"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition cursor-pointer ${editMethod === "Pickup"
+                    ? "border-green-600 bg-green-50 text-green-900 font-bold ring-2 ring-green-600/20"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   <Truck size={20} className={editMethod === "Pickup" ? "text-green-700" : "text-slate-400"} />
                   <span className="text-xs">Pickup (Jemput)</span>
@@ -709,11 +708,10 @@ export default function WargaReportsPage() {
                 <button
                   type="button"
                   onClick={() => setEditMethod("Drop-off")}
-                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition cursor-pointer ${
-                    editMethod === "Drop-off"
-                      ? "border-green-600 bg-green-50 text-green-900 font-bold ring-2 ring-green-600/20"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-center transition cursor-pointer ${editMethod === "Drop-off"
+                    ? "border-green-600 bg-green-50 text-green-900 font-bold ring-2 ring-green-600/20"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
                 >
                   <Building2 size={20} className={editMethod === "Drop-off" ? "text-green-700" : "text-slate-400"} />
                   <span className="text-xs">Drop-off (Antar)</span>
@@ -734,11 +732,10 @@ export default function WargaReportsPage() {
                       key={cat}
                       type="button"
                       onClick={() => toggleCategory(cat)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                        active
-                          ? "bg-green-700 text-white shadow-sm"
-                          : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                      }`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${active
+                        ? "bg-green-700 text-white shadow-sm"
+                        : "border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        }`}
                     >
                       {active && <Check size={13} strokeWidth={3} />}
                       <span>{cat}</span>

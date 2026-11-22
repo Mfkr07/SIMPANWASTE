@@ -19,10 +19,6 @@ export default function AboutUsPage() {
     alert("Kontak kerja sama belum tersedia. Silakan lengkapi data kontak.");
   };
 
-  const openWhatsAppAlert = () => {
-    alert("Nomor WhatsApp utama belum tersedia.");
-  };
-
   return (
     <div className="min-h-screen bg-[#f7faf8] text-slate-800">
       <Navbar activePath="/about-us" />
@@ -198,13 +194,12 @@ export default function AboutUsPage() {
               <h2 className="text-3xl font-extrabold">Siap menabung sampah?</h2>
               <p className="mt-3 text-green-100">Mulai pilah dari rumah dan setor ke Graha Pena.</p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={openWhatsAppAlert}
+                <Link
+                  href="/register"
                   className="inline-flex min-h-10 items-center justify-center rounded-xl bg-white px-6 py-2.5 text-sm font-extrabold text-green-900 shadow-sm hover:bg-green-50 transition active:scale-[.98]"
                 >
-                  WhatsApp
-                </button>
+                  Setor Sekarang
+                </Link>
                 <Link
                   href="/alur-penyetoran"
                   className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/30 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white hover:bg-white/20 transition active:scale-[.98]"
